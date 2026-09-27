@@ -1,0 +1,33 @@
+# Dependencies (re-downloaded by `npm install`, never committed)
+node_modules/
+
+# Next.js / build output
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# Environment files hold secrets. Only the example template is committed.
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Solana keypairs are private keys. Never commit them.
+*keypair*.json
+id.json
+
+# Misc
+.DS_Store
+*.pem
+.vercel
