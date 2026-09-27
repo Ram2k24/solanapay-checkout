@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Fonts are loaded by next/font in layout.tsx and exposed as CSS variables. */
+@theme inline {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+}
