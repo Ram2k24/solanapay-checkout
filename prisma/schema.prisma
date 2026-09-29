@@ -65,6 +65,7 @@ model User {
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   merchant Merchant?
+  sessions Session[]
 
   @@map("users")
 }
@@ -181,4 +182,48 @@ model AuditLog {
 
   @@index([entityType, entityId, createdAt])
   @@map("audit_logs")
+}
+
+// One-time sign-in challenge (Sign-In With Solana). The server builds the full
+// message and stores it; the wallet signs exactly these bytes. Single use.
+model AuthNonce {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  nonce         String    @unique @db.VarChar(64)
+  walletAddress String    @map("wallet_address") @db.VarChar(44)
+  message       String    @db.VarChar(1000)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt        DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("auth_nonces")
+}
+
+// Server-side session. The cookie holds a random token; only its HMAC is stored,
+// so a database leak alone does not reveal usable session tokens.
+model Session {
+  id        String    @id @default(uuid(7)) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.Char(64)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  ipAddress String?   @map("ip_address") @db.VarChar(45)
+  userAgent String?   @map("user_agent") @db.VarChar(256)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Fixed-window request counters for rate limiting (one row per key per window).
+model RateLimit {
+  key         String   @db.VarChar(128)
+  windowStart DateTime @map("window_start") @db.Timestamptz(3)
+  count       Int
+
+  @@id([key, windowStart])
+  @@map("rate_limits")
 }

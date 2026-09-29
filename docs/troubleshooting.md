@@ -57,3 +57,17 @@ Same cause: start Postgres first (`docker compose up -d`).
 **Migration drift / "The migration was modified after it was applied"**
 Never edit a migration that has already been applied. Create a new one with
 `npx prisma migrate dev --name <change>`.
+
+**`Property 'session' does not exist on type 'PrismaClient'` after a migration**
+Prisma 7's `migrate dev` does not regenerate the client. Run `npx prisma generate`.
+
+## Tests
+
+**`TEST_DATABASE_URL is not set`**
+Add it to `.env` (copy the line from `.env.example`), then `npm run db:test:setup`.
+
+**Tests fail with missing tables/columns after pulling new migrations**
+Re-run `npm run db:test:setup` to migrate the test database.
+
+**`Refusing: the test database name must end in _test`**
+Safety check: tests empty every table, so they refuse to run against other databases.

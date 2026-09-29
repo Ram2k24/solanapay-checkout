@@ -11,6 +11,7 @@ erDiagram
     merchants ||--o{ wallets : "payout addresses"
     merchants ||--o{ invoices : issues
     invoices ||--o| payments : "settled by"
+    users ||--o{ sessions : "signed in as"
     audit_logs }o..o{ invoices : "references (by entity_type/entity_id)"
 ```
 
@@ -22,6 +23,9 @@ erDiagram
 | `invoices` | Payment requests | `reference` UNIQUE; UNIQUE `(merchant_id, invoice_number)`; `amount > 0`; `paid_at` set iff `PAID` |
 | `payments` | Verified on-chain settlements | `signature` UNIQUE (replay protection); `invoice_id` UNIQUE; `amount > 0`; `finalized_at` set iff `FINALIZED` |
 | `audit_logs` | Security/money events | Append-only (UPDATE/DELETE blocked by trigger) |
+| `auth_nonces` | One-time sign-in challenges (Phase 4) | `nonce` UNIQUE; single use via `used_at`; 5-minute expiry |
+| `sessions` | Server-side sessions (Phase 4) | `token_hash` UNIQUE (HMAC of the cookie token); `revoked_at`; cascade with user |
+| `rate_limits` | Fixed-window request counters (Phase 4) | PK `(key, window_start)` |
 
 ## Design decisions
 
@@ -72,6 +76,7 @@ there is no drift between schema and database.
 | `npm run db:deploy` | Production/CI: apply pending migrations only (`prisma migrate deploy`) |
 | `npm run db:status` | Show applied/pending migrations |
 | `npm run db:check` | Run `scripts/db-constraint-check.sql`: 14 negative tests, rolled back |
+| `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` |
 | `npx prisma studio` | Browse data in a local web UI |
 
 To add a change: edit `prisma/schema.prisma` → `npx prisma migrate dev --name <change>`

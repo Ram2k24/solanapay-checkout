@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–3 complete (environment, Next.js app skeleton, database schema).
+**Status:** early development. Phases 1–4 complete (environment, app skeleton, database schema, server-side authentication).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -16,6 +16,9 @@ Implemented so far:
   environment variables, and USDC mints must match Circle's official addresses
 - Structured JSON logging with secret redaction
 - `GET /api/health`: reports app and database status (503 when the database is down)
+- Sign-In With Solana backend: one-time challenges, Ed25519 signature verification,
+  database-backed sessions, CSRF protection, rate limiting (see [docs/security.md](docs/security.md)).
+  The wallet sign-in UI arrives in Phase 5.
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -47,6 +50,9 @@ Prerequisites: Node.js 24 LTS (`nvm use`), Docker with Compose plugin.
 | `npm run build` | Production build (includes type checking) |
 | `npm run start` | Serve the production build |
 | `npm run typecheck` | TypeScript strict check only |
+| `npm test` | Unit and integration tests (Vitest) |
+| `npm run db:test:setup` | Create and migrate the test database |
+| `npm run smoke` | Smoke-test the production build (starts and stops its own server) |
 
 Health check: `curl http://localhost:3000/api/health`
 
@@ -67,14 +73,20 @@ Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/dat
 _Phase 8._
 
 ## Testing
-_Phase 14._
+Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
+
+    npm run db:test:setup   # once, and after new migrations
+    npm test                # 22 tests: SIWS message, signatures, full auth flow and attacks
+    npm run db:check        # database constraint tests
+
+Full E2E and blockchain test suites: Phase 14.
 
 ## Deployment
 _Phase 15._
 
 ## Security
 Never share seed phrases or private keys. The application never requests,
-stores, or uses customer private keys. Details: _Phase 13_.
+stores, or uses private keys. See [docs/security.md](docs/security.md).
 
 ## Roadmap
 _Phase 17._

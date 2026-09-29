@@ -45,6 +45,18 @@ install scripts by default. `prisma` (preinstall) and `@prisma/engines`
 (postinstall) are explicitly denied; generate and migrate work without them
 locally. Re-verify on the deployment platform (Phase 15).
 
+## Phase 4: verified 2026-09-29
+
+| Package | Version | Type | Deprecated |
+|---|---|---|---|
+| @solana/kit | 8.3.0 | runtime | no |
+| vitest | 5.0.2 | dev | no |
+| vite | 8.3.1 | (via vitest) | no |
+
+`@solana/kit` 8.4.0 was released after 8.3.x was approved; staying on 8.3.0
+(compatible with `@solana/react` 8.3 and `@solana/kit-plugin-wallet` 0.20).
+`npm audit`: 0 vulnerabilities.
+
 ## Decisions
 
 - **TypeScript 6.0.3, not 7.0.x.** TS 7 (native compiler) ships without a

@@ -35,14 +35,22 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
     ├── app/                  # Next.js App Router: folders are URLs
     │   ├── layout.tsx        # root layout (fonts, <html>/<body>)
     │   ├── page.tsx          # landing page (/)
-    │   └── api/health/       # GET /api/health
+    │   └── api/
+    │       ├── health/       # GET /api/health
+    │       └── auth/         # nonce, verify, logout, session
     ├── components/           # shared UI (header, footer, network banner)
     ├── instrumentation.ts    # runs once at server start
     ├── generated/prisma/ # Prisma Client (generated, git-ignored)
     └── lib/
+        ├── auth/             # SIWS message, signature check, challenges, sessions
         ├── config/           # env validation (public + server-only), networks
         ├── db/               # Prisma client (server-only, with timeouts)
+        ├── http/             # API errors, origin check, rate limit, route wrapper
         └── log/              # pino logger
+    tests/
+    ├── support/              # test setup, test DB reset, throwaway wallets
+    ├── unit/
+    └── integration/          # route handlers against a real test database
 
 ## Configuration
 
@@ -63,3 +71,7 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
 - Sensitive keys (password, secret, privateKey, seedPhrase, cookie,
   authorization, AUTH_SECRET, CRON_SECRET, DATABASE_URL) are redacted.
 - In development, `npm run dev` pipes output through `pino-pretty`.
+
+## Authentication
+
+Sign-In With Solana with server-side sessions. See [security.md](security.md).

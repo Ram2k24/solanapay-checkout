@@ -11,7 +11,7 @@ const base58Address = z.string().regex(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/, "must be
 const schema = z
   .object({
     APP_ENV: z.enum(["development", "test", "production"]),
-    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+    LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
     SOLANA_RPC_URL: z.url({ protocol: /^https?$/ }),
     USDC_MINT_DEVNET: base58Address,
     USDC_MINT_MAINNET: base58Address,
