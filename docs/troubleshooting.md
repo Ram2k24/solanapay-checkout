@@ -35,3 +35,25 @@ Public variables are inlined at build time. Restart `npm run dev`, or re-run
 **`curl http://localhost:3000/...` prints nothing**
 No server is listening (`curl -s` hides connection errors). Start `npm run dev`
 in another terminal first; check with `ss -ltn | grep ':3000 '`.
+
+## Database / Prisma
+
+**Prisma prints "Update available 7.10.0 -> 8.0.0-rc..."**
+Ignore it. We intentionally stay on Prisma 7 stable. Don't run the suggested
+`npm i ...@latest` commands.
+
+**`npm warn install-scripts ... prisma ... @prisma/engines`**
+Expected once on a fresh machine if `allowScripts` is missing. Our `package.json`
+records both as denied; see docs/dependencies.md.
+
+**`/api/health` returns 503 `"database":"unavailable"`**
+Postgres isn't reachable. Check `docker compose ps` and start it with
+`docker compose start postgres`. The app reconnects automatically; the error
+details are in the server log.
+
+**`Can't reach database server at localhost:5432` from a Prisma command**
+Same cause: start Postgres first (`docker compose up -d`).
+
+**Migration drift / "The migration was modified after it was applied"**
+Never edit a migration that has already been applied. Create a new one with
+`npx prisma migrate dev --name <change>`.

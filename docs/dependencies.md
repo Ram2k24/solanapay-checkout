@@ -23,12 +23,38 @@ Before each install we check the registry, and record the result here.
 | pino-pretty | 13.1.3 | no |
 | server-only | 0.0.1 | no |
 
+## Phase 3: verified 2026-09-29
+
+| Package | Version | Type | Deprecated |
+|---|---|---|---|
+| prisma | 7.10.0 | dev | no |
+| @prisma/client | 7.10.0 | runtime | no |
+| @prisma/adapter-pg | 7.10.0 | runtime | no |
+| pg | 8.23.0 | runtime | no |
+
+**Overrides** (`package.json` → `overrides`): the Prisma 7.10.0 CLI depends on
+`mysql2` 3.15.3 (GHSA-3f6p-5ww8-9rcr, GHSA-rgwj-5xj2-c3m3) and `deepmerge-ts`
+7.1.5 (GHSA-ggr8-5vv4-36mx). Both are CLI-only (not in the app's runtime bundle)
+and not reachable in our usage, but we override them to the patched `mysql2`
+3.24.4 and `deepmerge-ts` 8.0.2 (tested: validate, generate, migrate, drift check).
+`npm audit`: 0 vulnerabilities. **Remove the overrides** when a Prisma release
+ships patched versions.
+
+**Install scripts** (`package.json` → `allowScripts`): npm 11 blocks dependency
+install scripts by default. `prisma` (preinstall) and `@prisma/engines`
+(postinstall) are explicitly denied; generate and migrate work without them
+locally. Re-verify on the deployment platform (Phase 15).
+
 ## Decisions
 
 - **TypeScript 6.0.3, not 7.0.x.** TS 7 (native compiler) ships without a
   stable programmatic API; Next.js 16.3 supports it via `tsc`, but other
   tooling may not until 7.1. Revisit later.
 - **`@types/node` ^24.** Matches the Node 24 LTS runtime (`.nvmrc`).
+- **Prisma 7.10.0, not 8.0.** npm's `latest` tag points to 8.0 release candidates;
+  Prisma's update notice can be ignored.
+- **No `dotenv`.** Prisma 7 doesn't load `.env`; `prisma.config.ts` uses Node's
+  built-in `process.loadEnvFile()` (existing environment variables win).
 - **npm stays at 11.x** (bundled with Node 24 LTS). Do not upgrade to npm 12.
 - **`@solana/pay` is not used.** Its latest release (1.0.26) requires
   `@solana/kit ^6.9`, which conflicts with the current wallet stack

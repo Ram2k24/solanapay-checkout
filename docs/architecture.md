@@ -38,8 +38,10 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
     │   └── api/health/       # GET /api/health
     ├── components/           # shared UI (header, footer, network banner)
     ├── instrumentation.ts    # runs once at server start
+    ├── generated/prisma/ # Prisma Client (generated, git-ignored)
     └── lib/
         ├── config/           # env validation (public + server-only), networks
+        ├── db/               # Prisma client (server-only, with timeouts)
         └── log/              # pino logger
 
 ## Configuration

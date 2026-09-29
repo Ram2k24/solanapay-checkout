@@ -31,3 +31,6 @@ id.json
 .DS_Store
 *.pem
 .vercel
+
+# Prisma Client is generated from prisma/schema.prisma (npm install runs `prisma generate`)
+src/generated/

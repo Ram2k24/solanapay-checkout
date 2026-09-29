@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–2 complete (environment, Next.js app skeleton).
+**Status:** early development. Phases 1–3 complete (environment, Next.js app skeleton, database schema).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -15,7 +15,9 @@ Implemented so far:
 - Validated configuration: the server refuses to start on missing/invalid
   environment variables, and USDC mints must match Circle's official addresses
 - Structured JSON logging with secret redaction
-- `GET /api/health` liveness endpoint
+- `GET /api/health`: reports app and database status (503 when the database is down)
+- PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
+  with database-level constraints (see [docs/database.md](docs/database.md))
 
 Planned features are listed in the [Roadmap](#roadmap) and only move here once
 implemented and tested.
@@ -24,7 +26,7 @@ implemented and tested.
 See [docs/architecture.md](docs/architecture.md).
 
 ## Technology Stack
-Next.js · TypeScript · PostgreSQL · Prisma · @solana/kit · Wallet Standard · Solana Pay
+Next.js 16 · TypeScript · PostgreSQL 17 · Prisma 7 · @solana/kit · Wallet Standard · Solana Pay
 
 ## Local Development
 
@@ -35,6 +37,7 @@ Prerequisites: Node.js 24 LTS (`nvm use`), Docker with Compose plugin.
     cp -n .env.example .env           # -n: never overwrite an existing .env
                                       # then set AUTH_SECRET and CRON_SECRET
     docker compose up -d              # start PostgreSQL
+    npm run db:deploy                 # apply database migrations
     ./scripts/verify-env.sh           # check the environment
     npm run dev                       # http://localhost:3000
 
@@ -54,7 +57,11 @@ all others are server-only and read at startup. All values are validated with
 Zod in `src/lib/config/`.
 
 ## Database Setup
-_Phase 3._
+Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/database.md).
+
+    npm run db:deploy     # apply migrations
+    npm run db:status     # check migration state
+    npm run db:check      # run the 14 database constraint tests (rolled back)
 
 ## Devnet Setup
 _Phase 8._
