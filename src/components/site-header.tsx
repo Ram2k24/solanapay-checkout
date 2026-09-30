@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { publicEnv } from "@/lib/config/public-env";
+import { WalletButton } from "./wallet/wallet-button";
 
 export function SiteHeader() {
   return (
@@ -11,13 +12,14 @@ export function SiteHeader() {
           </span>
           SolanaPay Checkout
         </Link>
-        <nav className="flex items-center gap-6 text-sm text-slate-600">
+        <nav className="flex items-center gap-4 text-sm text-slate-600 sm:gap-6">
           <a href="#how-it-works" className="hidden hover:text-slate-900 sm:inline">How it works</a>
           <a href="#verification" className="hidden hover:text-slate-900 sm:inline">Verification</a>
           <a href="#technology" className="hidden hover:text-slate-900 sm:inline">Technology</a>
-          <span className="rounded-full border border-slate-200 px-2.5 py-0.5 font-mono text-xs capitalize text-slate-700">
+          <span className="hidden rounded-full border border-slate-200 px-2.5 py-0.5 font-mono text-xs capitalize text-slate-700 sm:inline">
             {publicEnv.NEXT_PUBLIC_SOLANA_NETWORK}
           </span>
+          <WalletButton />
         </nav>
       </div>
     </header>

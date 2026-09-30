@@ -43,6 +43,18 @@ by signing a one-time challenge:
 
 Sessions last 8 hours (absolute).
 
+## Browser side (Phase 5)
+
+- Connecting a wallet only shares a public address; the dashboard is authorized by
+  the **server session**, checked on every request, never by browser state.
+- The browser never sees the session token (HttpOnly cookie); it only asks
+  `/api/auth/session` who is signed in.
+- Wallet errors are shown as fixed, friendly messages; raw wallet errors are not displayed.
+- If the connected wallet differs from the signed-in wallet, the UI warns and offers sign-out.
+- Only wallets supporting the configured chain and `solana:signMessage` are listed.
+- Balances count only Circle's USDC mint; the mint comes from shared config, not user input.
+- The production client bundle was scanned for `AUTH_SECRET`/`CRON_SECRET` values: none present.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes

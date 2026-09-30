@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac, randomBytes } from "node:crypto";
+import { cookies } from "next/headers";
 import type { NextRequest, NextResponse } from "next/server";
 import { publicEnv } from "@/lib/config/public-env";
 import { serverEnv } from "@/lib/config/server-env";
@@ -42,8 +43,18 @@ export async function createSession(
   return { token, expiresAt };
 }
 
+// For route handlers: reads the session cookie from the incoming request.
 export async function getSession(request: NextRequest): Promise<AuthSession | null> {
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  return sessionFromToken(request.cookies.get(SESSION_COOKIE)?.value);
+}
+
+// For server components (pages): reads the session cookie of the current request.
+export async function getCurrentSession(): Promise<AuthSession | null> {
+  const cookieStore = await cookies();
+  return sessionFromToken(cookieStore.get(SESSION_COOKIE)?.value);
+}
+
+async function sessionFromToken(token: string | undefined): Promise<AuthSession | null> {
   if (!token || !TOKEN_PATTERN.test(token)) return null;
 
   const session = await db.session.findUnique({

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Providers } from "@/components/providers";
 import "./globals.css";
 
 // next/font downloads the fonts at build time and serves them from our own domain
@@ -15,7 +16,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable}`}>
-      <body className="bg-white font-sans text-slate-900 antialiased">{children}</body>
+      <body className="bg-white font-sans text-slate-900 antialiased">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

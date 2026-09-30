@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 // Calls to action. Set `href` when the target page exists; until then the
 // button renders as disabled so the landing page never links to a missing page.
 const CTAS = {
-  merchant: { label: "Open merchant dashboard", href: null as string | null },
+  merchant: { label: "Open merchant dashboard", href: "/dashboard" as string | null },
   demo: { label: "Try a demo payment", href: null as string | null },
 };
 

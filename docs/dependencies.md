@@ -57,6 +57,19 @@ locally. Re-verify on the deployment platform (Phase 15).
 (compatible with `@solana/react` 8.3 and `@solana/kit-plugin-wallet` 0.20).
 `npm audit`: 0 vulnerabilities.
 
+## Phase 5: verified 2026-09-30
+
+| Package | Version | Deprecated |
+|---|---|---|
+| @solana/react | 8.3.0 | no |
+| @solana/kit-plugin-wallet | 0.20.0 | no |
+| @solana/kit-plugin-rpc | 0.19.0 | no |
+| @solana-program/token | 0.17.0 | no |
+
+Peers satisfied: `@solana/kit` 8.3.0, `react` 19.3.0. A single `@solana/kit@8.3.0`
+is used across the tree (`npm ls @solana/kit --all`). `npm audit`: 0 vulnerabilities.
+`@solana/react` 8.4.0 exists; staying on 8.3.0 to match Kit 8.3.0.
+
 ## Decisions
 
 - **TypeScript 6.0.3, not 7.0.x.** TS 7 (native compiler) ships without a

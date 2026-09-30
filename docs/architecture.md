@@ -10,7 +10,7 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
 | Database | PostgreSQL 17, Prisma ORM | Relational integrity for money; parameterized SQL |
 | Solana SDK | `@solana/kit` | Official current SDK; `@solana/web3.js` v1 is legacy |
 | Wallets | Wallet Standard via `@solana/react` / `@solana/kit-plugin-wallet` | Official replacement for wallet-adapter |
-| Payment URLs | `@solana/pay` (Kit-based) | Official Solana Pay transfer-request SDK |
+| Payment URLs | Solana Pay spec, implemented in `src/lib/payments/solana-pay.ts` (Phase 7) | `@solana/pay` 1.0.26 requires Kit ^6.9, which conflicts with the Kit 8 wallet stack; see dependencies.md |
 | On-chain program | None for MVP | SPL Token `transferChecked` + Solana Pay reference is sufficient; a custom program adds audit and upgrade risk with no merchant benefit |
 | Network | Devnet only; network set via config | Mainnet later without code changes |
 | Money | Integer base units (`BIGINT`, TS `bigint`); USDC = 6 decimals | No floating-point rounding |
@@ -38,7 +38,8 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
     │   └── api/
     │       ├── health/       # GET /api/health
     │       └── auth/         # nonce, verify, logout, session
-    ├── components/           # shared UI (header, footer, network banner)
+    ├── components/           # shared UI: header, footer, banner, providers,
+    │   └── wallet/           #   wallet button and balances (client components)
     ├── instrumentation.ts    # runs once at server start
     ├── generated/prisma/ # Prisma Client (generated, git-ignored)
     └── lib/
@@ -46,7 +47,10 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
         ├── config/           # env validation (public + server-only), networks
         ├── db/               # Prisma client (server-only, with timeouts)
         ├── http/             # API errors, origin check, rate limit, route wrapper
-        └── log/              # pino logger
+        ├── log/              # pino logger
+        ├── money/            # integer-only amount formatting
+        ├── solana/           # browser Solana client (wallet + RPC), address helpers
+        └── wallet/           # wallet error handling
     tests/
     ├── support/              # test setup, test DB reset, throwaway wallets
     ├── unit/
@@ -75,3 +79,11 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
 ## Authentication
 
 Sign-In With Solana with server-side sessions. See [security.md](security.md).
+
+## Frontend
+
+- Server components by default (landing page, dashboard); client components
+  (`"use client"`) only where the browser is needed (wallet UI, session context).
+- `src/lib/solana/client.ts`: `createClient().use(walletSigner({ chain })).use(solanaRpc(...))`
+  from `@solana/kit`, provided to React via `ClientProvider` (`@solana/react`).
+- `SessionProvider` exposes the server session and `signIn`/`signOut` to the UI.

@@ -71,3 +71,29 @@ Re-run `npm run db:test:setup` to migrate the test database.
 
 **`Refusing: the test database name must end in _test`**
 Safety check: tests empty every table, so they refuse to run against other databases.
+
+## Wallet
+
+**"No compatible Solana wallet found"**
+No Wallet Standard wallet supporting the configured network and message signing
+is installed in this browser. Install Phantom or Solflare and reload.
+
+**Wallet shows mainnet / balances look wrong**
+Switch the wallet to devnet (Phantom: Settings → Developer Settings → Testnet Mode →
+Solana Devnet) and reconnect.
+
+**Balance shows "Unavailable, retry"**
+The public devnet RPC (`api.devnet.solana.com`) is rate-limiting. Retry after a few
+seconds; for heavier use set `NEXT_PUBLIC_SOLANA_RPC_URL` to a provider endpoint.
+
+**`/api/auth/session` is requested twice per page load in development**
+React Strict Mode runs effects twice in development only. Production runs it once.
+
+**Minified React error #418 (hydration mismatch)**
+Server HTML differed from the first browser render. Wallet state only exists in the
+browser, so wallet UI must render a placeholder until mounted (see `useIsBrowser` in
+`src/components/wallet/wallet-button.tsx`).
+
+**After a reboot: `Can't reach database server at 127.0.0.1:5432`**
+Start Postgres with `docker compose up -d`. To start it automatically at boot, enable
+the Docker service: `sudo systemctl enable docker`.

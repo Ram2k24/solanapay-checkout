@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–4 complete (environment, app skeleton, database schema, server-side authentication).
+**Status:** early development. Phases 1–5 complete (environment, app skeleton, database schema, wallet sign-in).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -17,8 +17,11 @@ Implemented so far:
 - Structured JSON logging with secret redaction
 - `GET /api/health`: reports app and database status (503 when the database is down)
 - Sign-In With Solana backend: one-time challenges, Ed25519 signature verification,
-  database-backed sessions, CSRF protection, rate limiting (see [docs/security.md](docs/security.md)).
-  The wallet sign-in UI arrives in Phase 5.
+  database-backed sessions, CSRF protection, rate limiting (see [docs/security.md](docs/security.md))
+- Wallet connection via Wallet Standard (Phantom, Solflare, …): connect/disconnect,
+  shortened address, devnet SOL and USDC balances (Circle's mint only), sign-in/out,
+  wallet-rejection and network-mismatch handling
+- Server-checked merchant dashboard page (placeholder content)
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -70,13 +73,14 @@ Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/dat
     npm run db:check      # run the 14 database constraint tests (rolled back)
 
 ## Devnet Setup
-_Phase 8._
+See [docs/devnet-testing.md](docs/devnet-testing.md): wallet setup, devnet SOL/USDC faucets,
+and the manual test checklist.
 
 ## Testing
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 22 tests: SIWS message, signatures, full auth flow and attacks
+    npm test                # 41 tests: SIWS, signatures, auth flow and attacks, formatting, wallet errors
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.
