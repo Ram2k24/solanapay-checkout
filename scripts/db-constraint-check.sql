@@ -42,7 +42,10 @@ INSERT INTO audit_logs (actor_type, action, entity_type, entity_id) VALUES ('SYS
 -- 23514 = check_violation, 23505 = unique_violation, 23503 = foreign_key_violation,
 -- 22P02 = invalid enum value, P0001 = raised by our trigger
 SELECT pg_temp.expect_error('invoice amount must be > 0',
-  $q$UPDATE invoices SET amount = 0 WHERE invoice_number = 'INV-TEST-1'$q$, '23514');
+  $q$INSERT INTO invoices (id, merchant_id, invoice_number, network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, reference, status, expires_at, updated_at)
+     SELECT gen_random_uuid(), merchant_id, 'INV-TEST-Z', network, currency, 0, token_mint, token_decimals,
+       recipient_wallet, 'RefZero', status, expires_at, now() FROM invoices WHERE invoice_number = 'INV-TEST-1'$q$, '23514');
 SELECT pg_temp.expect_error('PAID requires paid_at',
   $q$UPDATE invoices SET status = 'PAID' WHERE invoice_number = 'INV-TEST-1'$q$, '23514');
 SELECT pg_temp.expect_error('paid_at only when PAID',
@@ -83,7 +86,38 @@ SELECT pg_temp.expect_error('audit log DELETE blocked',
   $q$DELETE FROM audit_logs$q$, 'P0001');
 SELECT pg_temp.expect_error('merchant with invoices cannot be deleted',
   $q$DELETE FROM merchants WHERE id = '00000000-0000-4000-8000-000000000002'$q$, '23503');
+SELECT pg_temp.expect_error('invoice counter must be positive',
+  $q$INSERT INTO invoice_counters (merchant_id, year, last_value) VALUES ('00000000-0000-4000-8000-000000000002', 2026, 0)$q$, '23514');
+SELECT pg_temp.expect_error('invoice counter year must be plausible',
+  $q$INSERT INTO invoice_counters (merchant_id, year, last_value) VALUES ('00000000-0000-4000-8000-000000000002', 26, 1)$q$, '23514');
+SELECT pg_temp.expect_error('idempotency key requires a request hash',
+  $q$INSERT INTO invoices (id, merchant_id, invoice_number, network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, reference, status, expires_at, updated_at, idempotency_key)
+     SELECT gen_random_uuid(), merchant_id, 'INV-TEST-K', network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, 'RefKey', status, expires_at, now(), 'key-1' FROM invoices WHERE invoice_number = 'INV-TEST-1'$q$, '23514');
+SELECT pg_temp.expect_error('idempotency key is unique per merchant',
+  $q$WITH first AS (INSERT INTO invoices (id, merchant_id, invoice_number, network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, reference, status, expires_at, updated_at, idempotency_key, request_hash)
+     SELECT gen_random_uuid(), merchant_id, 'INV-TEST-3', network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, 'Reference3', status, expires_at, now(), 'key-1', repeat('a', 64) FROM invoices WHERE invoice_number = 'INV-TEST-1' RETURNING id)
+     INSERT INTO invoices (id, merchant_id, invoice_number, network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, reference, status, expires_at, updated_at, idempotency_key, request_hash)
+     SELECT gen_random_uuid(), merchant_id, 'INV-TEST-4', network, currency, amount, token_mint, token_decimals,
+       recipient_wallet, 'Reference4', status, expires_at, now(), 'key-1', repeat('b', 64) FROM invoices WHERE invoice_number = 'INV-TEST-1'$q$, '23505');
+SELECT pg_temp.expect_error('invoice amount cannot change after creation',
+  $q$UPDATE invoices SET amount = 1 WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
+SELECT pg_temp.expect_error('invoice recipient cannot change after creation',
+  $q$UPDATE invoices SET recipient_wallet = 'AttackerWallet111111111111111111111111111111' WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
+SELECT pg_temp.expect_error('invoice token mint cannot change after creation',
+  $q$UPDATE invoices SET token_mint = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB' WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
+SELECT pg_temp.expect_error('invoice reference cannot change after creation',
+  $q$UPDATE invoices SET reference = 'OtherReference' WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
+SELECT pg_temp.expect_error('invoice network cannot change after creation',
+  $q$UPDATE invoices SET network = 'MAINNET' WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
 \o
+-- Lifecycle fields stay updatable (Phases 9-10 need this).
+UPDATE invoices SET status = 'EXPIRED', updated_at = now() WHERE invoice_number = 'INV-TEST-1';
+INSERT INTO results SELECT 'invoice status can still change (lifecycle)', CASE WHEN status = 'EXPIRED' THEN 'PASS' ELSE 'FAIL' END FROM invoices WHERE invoice_number = 'INV-TEST-1';
 
 \pset footer off
 SELECT test, outcome FROM results;

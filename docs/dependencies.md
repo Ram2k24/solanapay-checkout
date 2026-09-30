@@ -70,6 +70,16 @@ Peers satisfied: `@solana/kit` 8.3.0, `react` 19.3.0. A single `@solana/kit@8.3.
 is used across the tree (`npm ls @solana/kit --all`). `npm audit`: 0 vulnerabilities.
 `@solana/react` 8.4.0 exists; staying on 8.3.0 to match Kit 8.3.0.
 
+## Phase 6: verified 2026-09-30
+
+| Package | Version | Type | Deprecated |
+|---|---|---|---|
+| tsx | 4.23.15 | dev (runs `scripts/seed-dev.ts`) | no |
+
+Depends on `esbuild` 0.28.2 (already present via Vite). esbuild's `postinstall` is
+**denied** in `allowScripts` (tested: tsx works without it; the binary comes from
+the optional `@esbuild/linux-x64` package). `npm audit`: 0 vulnerabilities.
+
 ## Decisions
 
 - **TypeScript 6.0.3, not 7.0.x.** TS 7 (native compiler) ships without a

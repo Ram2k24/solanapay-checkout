@@ -34,10 +34,13 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
     src/
     ├── app/                  # Next.js App Router: folders are URLs
     │   ├── layout.tsx        # root layout (fonts, <html>/<body>)
+    │   ├── (merchant)/       # signed-in area: dashboard, onboarding, invoices (shared layout)
     │   ├── page.tsx          # landing page (/)
     │   └── api/
     │       ├── health/       # GET /api/health
-    │       └── auth/         # nonce, verify, logout, session
+    │       ├── auth/         # nonce, verify, logout, session
+    │       ├── merchant/     # merchant profile
+    │       └── invoices/     # create, list, get
     ├── components/           # shared UI: header, footer, banner, providers,
     │   └── wallet/           #   wallet button and balances (client components)
     ├── instrumentation.ts    # runs once at server start
@@ -47,8 +50,12 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
         ├── config/           # env validation (public + server-only), networks
         ├── db/               # Prisma client (server-only, with timeouts)
         ├── http/             # API errors, origin check, rate limit, route wrapper
+        ├── dev/              # seed safety guard
         ├── log/              # pino logger
-        ├── money/            # integer-only amount formatting
+        ├── merchant/         # requireMerchant, payout wallet validation
+        ├── money/            # integer-only amount parsing and formatting
+        ├── payments/         # invoice rules: state machine, numbering, reference,
+        │                     #   create/list, DTO, policy (expiry, limits)
         ├── solana/           # browser Solana client (wallet + RPC), address helpers
         └── wallet/           # wallet error handling
     tests/
@@ -87,3 +94,8 @@ Sign-In With Solana with server-side sessions. See [security.md](security.md).
 - `src/lib/solana/client.ts`: `createClient().use(walletSigner({ chain })).use(solanaRpc(...))`
   from `@solana/kit`, provided to React via `ClientProvider` (`@solana/react`).
 - `SessionProvider` exposes the server session and `signIn`/`signOut` to the UI.
+
+## Invoices
+
+See [payment-flow.md](payment-flow.md). Business rules live in `src/lib/payments/`;
+API routes and pages are thin wrappers around them.

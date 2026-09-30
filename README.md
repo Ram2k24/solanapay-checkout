@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–5 complete (environment, app skeleton, database schema, wallet sign-in).
+**Status:** early development. Phases 1–6 complete (environment, app skeleton, database, wallet sign-in, invoices).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -21,7 +21,13 @@ Implemented so far:
 - Wallet connection via Wallet Standard (Phantom, Solflare, …): connect/disconnect,
   shortened address, devnet SOL and USDC balances (Circle's mint only), sign-in/out,
   wallet-rejection and network-mismatch handling
-- Server-checked merchant dashboard page (placeholder content)
+- Merchant onboarding (business name, email, validated payout wallet)
+- Invoices: create (USDC amount, optional order ID or automatic `ORD-YYYY-NNNNN`,
+  description, expiry), list with status filters and pagination, detail page;
+  per-merchant numbering `INV-YYYY-NNNNN`; idempotent creation; payment terms fixed
+  by the server and immutable after creation (see [docs/payment-flow.md](docs/payment-flow.md))
+- Merchant dashboard with invoice counts and recent invoices
+- Invoices can't be paid yet: Solana Pay links/QR codes come in Phase 7
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -55,6 +61,7 @@ Prerequisites: Node.js 24 LTS (`nvm use`), Docker with Compose plugin.
 | `npm run typecheck` | TypeScript strict check only |
 | `npm test` | Unit and integration tests (Vitest) |
 | `npm run db:test:setup` | Create and migrate the test database |
+| `npm run db:seed -- --wallet <addr>` | Development-only demo merchant and invoices (idempotent) |
 | `npm run smoke` | Smoke-test the production build (starts and stops its own server) |
 
 Health check: `curl http://localhost:3000/api/health`
@@ -70,7 +77,7 @@ Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/dat
 
     npm run db:deploy     # apply migrations
     npm run db:status     # check migration state
-    npm run db:check      # run the 14 database constraint tests (rolled back)
+    npm run db:check      # run the 24 database constraint checks (rolled back)
 
 ## Devnet Setup
 See [docs/devnet-testing.md](docs/devnet-testing.md): wallet setup, devnet SOL/USDC faucets,
@@ -80,7 +87,7 @@ and the manual test checklist.
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 41 tests: SIWS, signatures, auth flow and attacks, formatting, wallet errors
+    npm test                # 172 tests: auth, merchants, invoices (incl. concurrency), rules, helpers
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.

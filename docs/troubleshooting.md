@@ -97,3 +97,30 @@ browser, so wallet UI must render a placeholder until mounted (see `useIsBrowser
 **After a reboot: `Can't reach database server at 127.0.0.1:5432`**
 Start Postgres with `docker compose up -d`. To start it automatically at boot, enable
 the Docker service: `sudo systemctl enable docker`.
+
+## Migrations (Phase 6 lessons)
+
+**`prisma migrate dev --create-only` ran twice and created an extra migration**
+Each run creates a new migration file. If the extra one only contains
+`-- This is an empty migration.` and isn't applied (`npm run db:status`), delete its
+folder. Never delete a migration that has been applied.
+
+**Prisma asks "Are you sure you want to create this migration? (y/N)"**
+Shown when a migration adds a unique constraint on existing columns. Answer `y`
+if the columns are new or known to be duplicate-free.
+
+**`invoice payment terms are immutable`**
+The database blocks changes to an invoice's amount, recipient, mint, reference,
+network etc. after creation (by design). Create a new invoice instead.
+
+**TypeScript errors in `.next/types/validator.ts` after moving/removing a page**
+Stale generated types. Stop the dev server and delete `.next/` (it is regenerated).
+
+## Seed
+
+**`Seed refused: ...`**
+Working as designed: the seed only runs with `APP_ENV=development` against a local,
+non-test database.
+
+**`This module cannot be imported from a Client Component module` from the seed**
+Run it through `npm run db:seed` (it passes `--conditions=react-server` to tsx).

@@ -26,6 +26,7 @@ erDiagram
 | `auth_nonces` | One-time sign-in challenges (Phase 4) | `nonce` UNIQUE; single use via `used_at`; 5-minute expiry |
 | `sessions` | Server-side sessions (Phase 4) | `token_hash` UNIQUE (HMAC of the cookie token); `revoked_at`; cascade with user |
 | `rate_limits` | Fixed-window request counters (Phase 4) | PK `(key, window_start)` |
+| `invoice_counters` | Per-merchant, per-year counters (Phase 6) | PK `(merchant_id, kind, year)`; `kind` = `INVOICE` (INV-YYYY-NNNNN) or `ORDER` (auto order IDs ORD-YYYY-NNNNN); `last_value > 0` |
 
 ## Design decisions
 
@@ -46,6 +47,16 @@ erDiagram
 - **`ON DELETE RESTRICT`** for merchants → invoices → payments: financial records
   cannot disappear through a parent delete. Wallets cascade with their merchant.
 - **Database-level constraints** hold even if application code has a bug.
+- **Invoice numbers** come from `invoice_counters`, incremented with
+  `INSERT … ON CONFLICT DO UPDATE … RETURNING` inside the invoice transaction; the
+  row lock serializes concurrent creates, so there are no duplicates or gaps
+  (a rolled-back create rolls back its increment too).
+- **Idempotency:** `invoices.idempotency_key` (UNIQUE per merchant) plus
+  `request_hash` (SHA-256 of the normalized request); CHECK: both set or both null.
+- **Immutable payment terms:** trigger `invoices_terms_immutable` rejects UPDATEs of
+  amount, mint, decimals, recipient, reference, network, currency, merchant,
+  invoice number, order ID, created_at and the idempotency fields. See
+  [payment-flow.md](payment-flow.md).
 
 ## Invoice state machine (stored in `invoices.status`)
 
@@ -75,7 +86,7 @@ there is no drift between schema and database.
 | `npm run db:migrate` | Development: create and apply a migration (`prisma migrate dev`) |
 | `npm run db:deploy` | Production/CI: apply pending migrations only (`prisma migrate deploy`) |
 | `npm run db:status` | Show applied/pending migrations |
-| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 14 negative tests, rolled back |
+| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 24 checks, rolled back |
 | `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` |
 | `npx prisma studio` | Browse data in a local web UI |
 
@@ -89,6 +100,12 @@ timeouts: connect 5 s, query 10 s (client side), statement 10 s (server side).
 `GET /api/health` returns 503 when the database is unreachable; details are
 logged server-side only.
 
-## Seed data
+## Seed data (development only)
 
-None yet. Demo data is added in Phase 6, once invoices can be created through the app.
+    npm run db:seed -- --wallet <your wallet address> [--name "Demo Shop"]
+
+Creates a merchant for the wallet (or reuses the existing one, unchanged) and 4 demo
+invoices through the real `createInvoice()` code path. Idempotent (fixed
+idempotency keys `seed-demo-1…4`). Refuses unless `APP_ENV=development`, the
+database host is local, and the database name doesn't end in `_test`. Never run
+automatically.

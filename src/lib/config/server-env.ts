@@ -18,6 +18,12 @@ const schema = z
     AUTH_SECRET: secret,
     CRON_SECRET: secret,
     DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
+    // Largest invoice amount accepted, in whole USDC (decimal string, max 6 decimals).
+    // A devnet safety cap; raise deliberately for production.
+    MAX_INVOICE_AMOUNT_USDC: z
+      .string()
+      .regex(/^\d{1,9}(\.\d{1,6})?$/, "must be a decimal amount like 10000 or 2500.50")
+      .default("10000"),
   })
   .superRefine((env, ctx) => {
     // Defense against typos or tampering: configured mints must equal Circle's official ones.

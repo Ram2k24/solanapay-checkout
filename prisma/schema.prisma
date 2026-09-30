@@ -49,6 +49,15 @@ enum Commitment {
   @@map("commitment")
 }
 
+// What a merchant counter numbers: invoices (INV-2026-00001) or auto-generated
+// order IDs (ORD-2026-00001).
+enum CounterKind {
+  INVOICE
+  ORDER
+
+  @@map("counter_kind")
+}
+
 enum ActorType {
   USER
   SYSTEM
@@ -82,8 +91,9 @@ model Merchant {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   owner    User      @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
-  wallets  Wallet[]
-  invoices Invoice[]
+  wallets         Wallet[]
+  invoices        Invoice[]
+  invoiceCounters InvoiceCounter[]
 
   @@map("merchants")
 }
@@ -125,6 +135,10 @@ model Invoice {
   failureReason     String?       @map("failure_reason") @db.VarChar(200)
   expiresAt         DateTime      @map("expires_at") @db.Timestamptz(3)
   paidAt            DateTime?     @map("paid_at") @db.Timestamptz(3)
+  // Idempotent creation: a retried request with the same key returns the original
+  // invoice; the same key with a different request body (different hash) is rejected.
+  idempotencyKey    String?       @map("idempotency_key") @db.VarChar(64)
+  requestHash       String?       @map("request_hash") @db.Char(64)
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -132,11 +146,28 @@ model Invoice {
   payment  Payment?
 
   @@unique([merchantId, invoiceNumber])
+  @@unique([merchantId, idempotencyKey])
   @@index([merchantId, status])
   @@index([merchantId, createdAt(sort: Desc)])
   @@index([status, expiresAt])
   @@index([merchantId, orderId])
   @@map("invoices")
+}
+
+// Per-merchant, per-year counters: invoice numbers (INV-2026-00001, ...) and
+// auto-generated order IDs (ORD-2026-00001, ...). Incremented with
+// INSERT ... ON CONFLICT DO UPDATE ... RETURNING inside the invoice-creation
+// transaction; the row lock serializes concurrent creates.
+model InvoiceCounter {
+  merchantId String      @map("merchant_id") @db.Uuid
+  kind       CounterKind @default(INVOICE)
+  year       Int         @db.SmallInt
+  lastValue  Int         @map("last_value")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, kind, year])
+  @@map("invoice_counters")
 }
 
 // A verified on-chain transfer that settled an invoice.

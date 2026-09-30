@@ -3,6 +3,9 @@
 import { getBase64Decoder, type ReadonlyUint8Array, type SignatureBytes } from "@solana/kit";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { postJson } from "@/lib/http/client";
+
+export { ApiRequestError } from "@/lib/http/client";
 
 // Browser-side view of the server session (the cookie itself is HttpOnly and
 // never visible here). Sign-in = get challenge -> wallet signs -> server verifies.
@@ -19,26 +22,6 @@ type SessionContextValue = {
   signIn: (walletAddress: string, signMessage: SignMessage) => Promise<void>;
   signOut: () => Promise<void>;
 };
-
-// Error thrown for API failures; `message` is the server's safe, user-facing text.
-export class ApiRequestError extends Error {
-  constructor(readonly code: string, message: string) {
-    super(message);
-  }
-}
-
-async function postJson<T>(url: string, body?: unknown): Promise<T> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const data = (await response.json().catch(() => null)) as { error?: { code: string; message: string } } | null;
-  if (!response.ok) {
-    throw new ApiRequestError(data?.error?.code ?? "InternalError", data?.error?.message ?? "Something went wrong.");
-  }
-  return data as T;
-}
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 

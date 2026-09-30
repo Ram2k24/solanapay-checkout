@@ -50,7 +50,24 @@ Notes:
 - Cancelled sign-ins and smoke tests leave unused challenges in `auth_nonces`;
   they expire after 5 minutes.
 
-## 4. Payments
+## 4. Merchant profile and invoices (Phase 6)
 
-Invoice creation, Solana Pay QR codes, USDC payment and on-chain verification
-are added in Phases 6–9; their devnet test steps will be added here.
+| # | Action | Expected |
+|---|---|---|
+| 1 | Signed in, open `/dashboard` without a profile | Redirect to **/onboarding** |
+| 2 | Create profile (payout wallet = your wallet) | Dashboard with zero counters |
+| 3 | Create invoice: 10.00, order ID, 30 min | Detail page `INV-YYYY-00001`, Pending, countdown, server-set mint/recipient/reference |
+| 4 | Amount `0` or `1.0000001` | Field error, no invoice created, no number used |
+| 5 | Order ID left blank | Automatic `ORD-YYYY-00001` |
+| 6 | Order ID `ORD-2026-00099` | "reserved for automatic order IDs" |
+| 7 | Double-click Create | Exactly one invoice |
+| 8 | Wait past a short expiry | Shown under **Expired** (row still `PENDING` until Phase 10) |
+| 9 | `npm run db:seed -- --wallet <addr>` twice | 4 demo invoices, then `exists` ×4 |
+
+**Verified 2026-09-30** with Phantom (Chrome): all checks passed; seed idempotent;
+`APP_ENV=production` seed refused.
+
+## 5. Payments
+
+Solana Pay QR codes, USDC payment and on-chain verification are added in
+Phases 7–9; their devnet test steps will be added here.

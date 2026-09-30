@@ -55,6 +55,21 @@ Sessions last 8 hours (absolute).
 - Balances count only Circle's USDC mint; the mint comes from shared config, not user input.
 - The production client bundle was scanned for `AUTH_SECRET`/`CRON_SECRET` values: none present.
 
+## Merchant data and invoices (Phase 6)
+
+- **Authorization by query scoping:** every merchant query includes
+  `merchant_id = <signed-in merchant>` in its WHERE clause. Another merchant's
+  invoice returns **404**, not 403, so its existence isn't revealed.
+- **Strict input schemas:** unknown fields are rejected (400), so clients can't
+  smuggle payment terms (`tokenMint`, `recipientWallet`, `network`, `status`, ...).
+- **Amounts** must be decimal strings (numbers/floats are rejected), ≤ 6 decimals,
+  > 0 and ≤ `MAX_INVOICE_AMOUNT_USDC` (default 10,000).
+- **Payout wallet validation:** valid address, on the Ed25519 curve (not a PDA or
+  token account), and not the System/Token/Associated Token program or a USDC mint.
+- **Immutable payment terms** (database trigger) and **idempotent creation**: see
+  [payment-flow.md](payment-flow.md).
+- Invoice creation is rate-limited (30/min per merchant) and audited.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -76,3 +91,6 @@ state-consistency CHECKs, and an append-only audit log.
   a least-privilege database role without TRUNCATE (planned, Phase 13).
 - **Cleanup** of expired nonces, sessions and rate-limit rows (planned, Phase 10 scheduler).
 - **Security headers** (CSP, HSTS, …) (planned, Phase 13).
+- **Payout wallet program check:** the denylist covers well-known programs and USDC
+  mints; checking via RPC that no program is deployed at the address is planned
+  (Phase 13).

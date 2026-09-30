@@ -9,21 +9,14 @@ import {
   useWalletStatus,
 } from "@solana/kit-plugin-wallet/react";
 import { useClient } from "@solana/react";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiRequestError, useSession } from "@/components/session-provider";
 import { publicEnv } from "@/lib/config/public-env";
 import { shortenAddress } from "@/lib/solana/address";
 import { SOLANA_CHAIN, type SolanaClient } from "@/lib/solana/client";
+import { useIsBrowser } from "@/lib/react/use-is-browser";
 import { describeWalletError } from "@/lib/wallet/errors";
 import { Balances } from "./balances";
-
-// false during server rendering and hydration, true once running in the browser.
-// Wallet state only exists in the browser, so rendering it earlier would make the
-// server HTML differ from the first browser render (a React hydration mismatch).
-const noopSubscribe = () => () => {};
-function useIsBrowser(): boolean {
-  return useSyncExternalStore(noopSubscribe, () => true, () => false);
-}
 
 const pill =
   "inline-flex h-9 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60";
