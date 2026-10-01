@@ -70,20 +70,35 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
             <div><dt className="text-slate-500">Network</dt><dd className="capitalize">Solana {checkout.network.toLowerCase()}</dd></div>
           </dl>
 
-          {checkout.paymentUrl ? (
+          {checkout.payment ? (
             <div className="mt-6 flex flex-col items-center gap-4 border-t border-slate-100 pt-6">
               <p className="text-sm font-medium"><ExpiryCountdown expiresAt={checkout.expiresAt} /></p>
-              <PaymentQr url={checkout.paymentUrl} />
+              <PaymentQr url={checkout.payment.primary} />
               <p className="max-w-sm text-center text-sm text-slate-600">
                 Scan with a Solana Pay wallet such as Phantom or Solflare. Make sure your wallet is set to{" "}
                 <span className="font-medium capitalize">{checkout.network.toLowerCase()}</span>.
               </p>
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-                <a href={checkout.paymentUrl} className="inline-flex h-11 items-center justify-center rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-800">
+                <a href={checkout.payment.primary} className="inline-flex h-11 items-center justify-center rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-800">
                   Open in wallet
                 </a>
-                <CopyButton text={checkout.paymentUrl} label="Copy payment link" />
+                <CopyButton text={checkout.payment.primary} label="Copy payment link" />
               </div>
+              {checkout.payment.kind === "transaction-request" && (
+                <details className="w-full max-w-sm text-sm text-slate-600">
+                  <summary className="cursor-pointer text-center">Wallet doesn&apos;t support this QR code?</summary>
+                  <p className="mt-2">
+                    Use the basic payment link instead. Some wallets send these payments without the invoice
+                    reference, so the merchant may need to match your payment manually.
+                  </p>
+                  <div className="mt-2 flex justify-center gap-2">
+                    <a href={checkout.payment.transfer} className="inline-flex h-9 items-center rounded-lg border border-slate-300 px-3 font-medium hover:bg-slate-50">
+                      Open basic link
+                    </a>
+                    <CopyButton text={checkout.payment.transfer} label="Copy basic link" />
+                  </div>
+                </details>
+              )}
             </div>
           ) : (
             <p className="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-slate-700" role="status">

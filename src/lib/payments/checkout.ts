@@ -4,7 +4,8 @@ import { db } from "@/lib/db/client";
 import { formatUnits } from "@/lib/money/format";
 import { shortenAddress } from "@/lib/solana/address";
 import { effectiveStatus } from "./invoice-state";
-import { encodeTransferRequest } from "./solana-pay";
+import { publicEnv } from "@/lib/config/public-env";
+import { paymentLinks, type PaymentLinks } from "./solana-pay";
 
 // What a customer may see about an invoice on the public checkout page. This is an
 // explicit allowlist: internal fields (customer reference, merchant email, merchant
@@ -22,15 +23,20 @@ export type PublicCheckout = {
   status: ReturnType<typeof effectiveStatus>;
   // Only while the invoice can be paid (effective status PENDING); built from the
   // stored invoice row, never from request input.
-  paymentUrl: string | null;
+  payment: PaymentLinks | null;
 };
 
-export async function getPublicCheckout(id: string, now = new Date()): Promise<PublicCheckout | null> {
+export async function getPublicCheckout(
+  id: string,
+  now = new Date(),
+  appUrl = publicEnv.NEXT_PUBLIC_APP_URL,
+): Promise<PublicCheckout | null> {
   if (!z.uuid().safeParse(id).success) return null;
 
   const invoice = await db.invoice.findUnique({
     where: { id },
     select: {
+      id: true,
       invoiceNumber: true,
       orderId: true,
       description: true,
@@ -60,6 +66,6 @@ export async function getPublicCheckout(id: string, now = new Date()): Promise<P
     recipientShort: shortenAddress(invoice.recipientWallet),
     expiresAt: invoice.expiresAt.toISOString(),
     status,
-    paymentUrl: status === "PENDING" ? encodeTransferRequest(invoice, invoice.merchant.name) : null,
+    payment: status === "PENDING" ? paymentLinks(invoice, invoice.merchant.name, appUrl) : null,
   };
 }

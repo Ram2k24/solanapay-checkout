@@ -68,3 +68,35 @@ export function encodeTransferRequest(invoice: TransferRequestInvoice, merchantN
     message: paymentMessage(invoice),
   });
 }
+
+// Transaction request URL (spec, "Transaction Request"): solana:<link>, where link is an
+// absolute HTTPS URL. URL-encoded only if it has query parameters (a shorter link and
+// a less dense QR code otherwise). Wallets reject non-HTTPS links as malformed.
+export function encodeTransactionRequest(link: string): string {
+  const url = new URL(link);
+  if (url.protocol !== "https:") throw new Error("Transaction request links must be absolute HTTPS URLs");
+  return `solana:${url.search ? encodeURIComponent(link) : link}`;
+}
+
+export type PaymentLinks = {
+  // What the QR code and "Open in wallet" use.
+  primary: string;
+  kind: "transaction-request" | "transfer-request";
+  // Plain transfer link: the fallback for wallets without transaction request support.
+  transfer: string;
+};
+
+// The payment links for a stored invoice. With an HTTPS app URL the primary link is a
+// transaction request: our server builds the transaction, so the reference is always
+// included. Over plain http (local development) transaction requests are not allowed
+// by the spec, so the transfer request is the primary link.
+export function paymentLinks(
+  invoice: TransferRequestInvoice & { id: string },
+  merchantName: string,
+  appUrl: string,
+): PaymentLinks {
+  const transfer = encodeTransferRequest(invoice, merchantName);
+  if (new URL(appUrl).protocol !== "https:") return { primary: transfer, kind: "transfer-request", transfer };
+  const endpoint = new URL(`/api/pay/${invoice.id}/transaction`, appUrl).href;
+  return { primary: encodeTransactionRequest(endpoint), kind: "transaction-request", transfer };
+}

@@ -84,7 +84,45 @@ Notes:
   sent 1 USDC, **but without the reference** (see payment-flow.md, field finding).
   The invoice correctly stays Pending: detection/verification come in Phases 9–10.
 
-## 6. Payments
+## 6. Transaction Requests on a phone (Phase 7b)
 
-Transaction Requests (Phase 7b), in-browser USDC payment (Phase 8) and on-chain
-verification (Phase 9) add their devnet test steps here.
+Transaction requests need an HTTPS app URL, and a phone can't reach `localhost`, so
+phone tests use a **temporary** Cloudflare quick tunnel (no account needed; testing
+only; a new random URL on every start; it stops when the process stops).
+
+1. Download `cloudflared-linux-amd64` from the official GitHub releases into a
+   scratch folder **outside the repo** and verify its SHA-256 against the release
+   notes before running it (`sha256sum -c`). Never commit it.
+2. Create the test invoice **first**, with the normal setup (signed in on
+   `http://localhost:3000`), then stop the dev server.
+3. Start the tunnel (keeps the exposure window short):
+   `./cloudflared tunnel --no-autoupdate --url http://127.0.0.1:3000` and note the
+   `https://….trycloudflare.com` URL.
+4. Restart the dev server with the tunnel URL as the app URL, **without editing
+   `.env`**: `NEXT_PUBLIC_APP_URL=https://….trycloudflare.com npm run dev`
+   (`process.env` takes precedence over `.env` in Next.js).
+5. On the laptop, open the checkout page at **`http://localhost:3000/pay/<id>`**. The
+   QR now contains the transaction request on the tunnel URL. Don't browse the app
+   through the tunnel hostname: the Next.js dev server blocks its dev assets for
+   hostnames not listed in `allowedDevOrigins`, and we deliberately don't add one.
+   Merchant pages will look signed out while the app URL is HTTPS (the session
+   cookie name changes to `__Host-sp_session`); that's expected.
+6. While the tunnel runs, **the dev server is reachable from the internet** at that URL.
+   Stop the tunnel as soon as the test is done.
+7. Afterwards: stop cloudflared, restart the dev server normally (`npm run dev`),
+   delete the binary.
+
+| # | Action | Expected |
+|---|---|---|
+| 1 | `localhost:3000/pay/<id>` with the tunnel app URL | QR encodes `solana:https://…/api/pay/<id>/transaction`; "Wallet doesn't support this QR code?" offers the basic link |
+| 2 | Scan with Phantom (devnet) | Merchant name, SP icon, domain; −amount of devnet USDC ("Unknown" token), small SOL fee |
+| 3 | Approve | `getSignaturesForAddress(reference)` finds the transaction; invoice stays Pending until Phase 9 |
+| 4 | Invoice with < 2 minutes left | Wallet shows an error (the server returns 409 `InvoiceNotPayable`) |
+| 5 | App URL http (normal local dev) | QR is the transfer request, with a note that HTTPS enables transaction requests |
+
+**Prototype verified 2026-10-01** with Phantom on Android: see payment-flow.md §4b.
+
+## 7. Payments
+
+In-browser USDC payment (Phase 8) and on-chain verification (Phase 9) add their
+devnet test steps here.

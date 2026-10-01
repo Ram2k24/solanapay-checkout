@@ -10,8 +10,9 @@ phase is implemented; nothing below "planned" exists yet.
     Create invoice ─────────────▶ validate, fix payment terms,
                                   store PENDING invoice          (Phase 6: implemented)
                                   build Solana Pay URL + QR ────▶ scan / open link      (Phase 7: implemented)
+                                  build unsigned tx (stored terms) ◀─ wallet POSTs account (Phase 7b: implemented)
                                                                   wallet signs USDC
-                                                                  transfer + reference  (Phase 8: planned)
+                                                                  transfer + reference  (Phase 8: planned in-browser)
                                   find tx by reference,
                                   verify against stored invoice
                                   CONFIRMING → PAID              ◀── confirmed / finalized (Phases 9–10: planned)
@@ -112,5 +113,68 @@ This is evidence about that wallet flow, not proof about all wallets. Decision
 3. Phase 9 adds an **Unmatched payments** list: incoming USDC without a matching
    reference is recorded for merchant review (like a suspense account) and is
    **never** marked paid automatically. The transaction above is its first test case.
+## 4b. Transaction Request: the primary payment path (Phase 7b: implemented)
+
+Spec: `SPEC.md`, "Transaction Request". The QR contains only a link to our server:
+
+    solana:https://<app>/api/pay/<invoice id>/transaction
+
+| Step | Who | What |
+|---|---|---|
+| 1 | Wallet | `GET` → `{ label: merchant name, icon: <app>/solana-pay-icon.svg }` |
+| 2 | Wallet | `POST { "account": "<customer wallet>" }` |
+| 3 | Server | Loads the invoice by ID; checks effective status PENDING and ≥ 120 s before expiry; validates the account (on-curve wallet, not the merchant's payout wallet) |
+| 4 | Server | `buildPaymentTransaction(storedInvoice, account, blockhash)` → unsigned v0 transaction; responds `{ transaction, message }` |
+| 5 | Wallet | Shows the transaction, the customer approves, the wallet signs and sends it |
+
+The transaction (`src/lib/payments/transaction-request.ts`):
+1. Associated Token `CreateIdempotent` for the merchant's USDC account (customer pays
+   rent only if it doesn't exist yet).
+2. Token `TransferChecked` of exactly `invoice.amount` with `invoice.token_decimals`,
+   from the customer's USDC account to the merchant's, with `invoice.reference`
+   appended as a **read-only, non-signer** account.
+
+The customer is the fee payer and the **only signer**; the signature slot is empty.
+The server holds no keys and never signs.
+
+**Invariant, enforced by the interface:** the builder takes the stored invoice row
+and the customer account, nothing else. The POST body schema reads only `account`;
+any other field (`amount`, `recipient`, `mint`, `reference`, ...) is dropped. A test
+sends injected terms and asserts the transaction is byte-for-byte identical.
+
+**Serving a transaction proves nothing.** The wallet may modify it or never send it,
+and the invoice stays PENDING. Only on-chain verification (Phase 9) can mark it paid.
+
+**Which link is primary** (`paymentLinks()`):
+- App URL is **HTTPS**: the QR and "Open in wallet" use the transaction request; the
+  plain transfer link is offered as a fallback ("Wallet doesn't support this QR code?").
+- App URL is **http** (local development): the transfer request, because the spec
+  requires HTTPS for transaction requests. Phone testing uses a temporary tunnel
+  (see devnet-testing.md).
+
+### Phone test result (2026-10-01)
+
+A throwaway prototype (same transaction, outside the repo, temporary cloudflared quick
+tunnel) was scanned with **Phantom on Android** (devnet): it called GET and POST,
+showed the label, icon and domain, and sent the transaction **unchanged, with the
+reference**: signature
+`5YcPT4Vsh4bUrU1mcuQaff18oTgAVxM5WjpSMFiYqZGQ3ixJpy9oktiWdxYapWagsq2MzJ9RHVmufPUPufALPywi`,
+found with `getSignaturesForAddress(reference)`.
+
+Findings that shaped the implementation and Phase 9:
+1. Phantom sends **GET and POST concurrently**, so POST never depends on GET.
+2. **Every scan is a new POST**, so one invoice can produce several valid transactions
+   with the same reference. If more than one lands, Phase 9 must settle the invoice
+   once and record the others as duplicates for refund, never "paid twice".
+3. RPC `jsonParsed` output labels the appended reference as a `multisigAuthority`
+   signer of `transferChecked`. That is a parser artefact (the account is read-only and
+   didn't sign). Phase 9 verification must use raw account keys and token balance
+   changes, not the parsed authority fields.
+4. Phantom showed our `label` as the message (not our `message` field), the devnet
+   mint as "Unknown" (no token metadata on devnet), and "This domain is new" for the
+   tunnel domain.
+
+Only Phantom on Android has been tested; other wallets are unverified.
+
 ## 5. Customer payment (Phase 8: planned)
 ## 6. Verification and detection (Phases 9–10: planned)

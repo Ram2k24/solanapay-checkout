@@ -11,7 +11,7 @@ import { db } from "@/lib/db/client";
 import { publicEnv } from "@/lib/config/public-env";
 import { getCurrentMerchant } from "@/lib/merchant/current";
 import { toInvoiceDto } from "@/lib/payments/invoice-dto";
-import { encodeTransferRequest } from "@/lib/payments/solana-pay";
+import { paymentLinks } from "@/lib/payments/solana-pay";
 
 export const metadata = { title: "Invoice · SolanaPay Checkout" };
 
@@ -28,7 +28,8 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const invoice = toInvoiceDto(row);
   // Built from the stored row only (see docs/payment-flow.md, stored-invoice invariant).
   const checkoutUrl = `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/pay/${row.id}`;
-  const paymentUrl = invoice.effectiveStatus === "PENDING" ? encodeTransferRequest(row, merchant.name) : null;
+  const payment =
+    invoice.effectiveStatus === "PENDING" ? paymentLinks(row, merchant.name, publicEnv.NEXT_PUBLIC_APP_URL) : null;
 
   const details: [string, React.ReactNode][] = [
     ["Order ID", invoice.orderId ?? "—"],
@@ -71,9 +72,9 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
 
       <section className="mt-6 rounded-xl border border-slate-200 p-6">
         <h2 className="font-medium">Payment link</h2>
-        {paymentUrl ? (
+        {payment ? (
           <div className="mt-4 flex flex-col gap-6 sm:flex-row">
-            <PaymentQr url={paymentUrl} size={200} />
+            <PaymentQr url={payment.primary} size={200} />
             <div className="min-w-0 flex-1 space-y-4 text-sm">
               <div>
                 <p className="text-slate-500">Customer checkout page</p>
@@ -86,10 +87,26 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
                 </div>
               </div>
               <div>
-                <p className="text-slate-500">Solana Pay link (what the QR code contains)</p>
-                <p className="mt-1 break-all font-mono text-xs text-slate-700">{paymentUrl}</p>
-                <div className="mt-2"><CopyButton text={paymentUrl} label="Copy Solana Pay link" /></div>
+                <p className="text-slate-500">
+                  {payment.kind === "transaction-request"
+                    ? "Solana Pay transaction request (what the QR code contains)"
+                    : "Solana Pay transfer link (what the QR code contains)"}
+                </p>
+                <p className="mt-1 break-all font-mono text-xs text-slate-700">{payment.primary}</p>
+                <div className="mt-2"><CopyButton text={payment.primary} label="Copy Solana Pay link" /></div>
               </div>
+              {payment.kind === "transaction-request" ? (
+                <div>
+                  <p className="text-slate-500">Basic transfer link (fallback for wallets without transaction requests)</p>
+                  <p className="mt-1 break-all font-mono text-xs text-slate-700">{payment.transfer}</p>
+                  <div className="mt-2"><CopyButton text={payment.transfer} label="Copy basic link" /></div>
+                </div>
+              ) : (
+                <p className="text-xs text-amber-700">
+                  The app URL is not HTTPS, so the QR code uses a basic transfer link. Some wallets drop the payment
+                  reference from these links. Transaction requests need HTTPS (see docs/devnet-testing.md).
+                </p>
+              )}
               <p className="text-xs text-slate-500">
                 Customers can scan the QR code with a Solana Pay wallet, or open the checkout page. Payment detection
                 and on-chain verification are added in a later milestone; until then this invoice stays Pending.

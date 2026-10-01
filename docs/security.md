@@ -79,11 +79,32 @@ Sessions last 8 hours (absolute).
   invoice is payable (effective status PENDING).
 - Rate-limited per IP (60/min).
 
+## Transaction Request endpoint (Phase 7b)
+
+`GET/POST/OPTIONS /api/pay/[id]/transaction` is called by **wallets**, not by our pages.
+
+- **No Origin (CSRF) check, by design.** CSRF abuses a browser's cookies; this
+  endpoint reads no cookie or session, sets none, and changes no state. Wallets are
+  not browsers and may send no Origin at all.
+- **CORS `*` without credentials**, on every response including errors, so
+  browser-based wallets can call it.
+- **Input:** the invoice ID (path) and `account` (body). All payment terms come from the
+  stored invoice; other body fields are dropped (see payment-flow.md, §4b).
+- **Checks:** invoice payable (effective PENDING) with at least 120 s left; account is
+  an on-curve wallet and not the merchant's own payout wallet.
+- **Rate limits, counted independently:** POST 30/min per IP and 20/min per invoice
+  (IP checked first, so a blocked IP doesn't use up the invoice's allowance); GET
+  30/min per IP. Many IPs can still exhaust one invoice's 20/min for a minute; the
+  customer then retries, or uses the basic link.
+- **The server never signs** and serving a transaction is not evidence of payment.
+- Logs the request ID, invoice ID and the customer's public address.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
 from `src/lib/http/api.ts` (`InvalidRequest`, `Unauthenticated`, `InvalidSignature`,
 `ChallengeExpired`, `ForbiddenOrigin`, `RateLimited`, `DatabaseUnavailable`,
+`InvalidAccount`, `SelfPaymentNotAllowed`, `InvoiceNotPayable`, `RpcUnavailable`,
 `InternalError`). Every response carries `x-request-id` and `cache-control: no-store`.
 
 ## Database-level protections
@@ -95,7 +116,10 @@ state-consistency CHECKs, and an append-only audit log.
 
 - **Client IP** comes from the first `X-Forwarded-For` entry. That is only
   trustworthy behind a proxy that overwrites the header (e.g. Vercel). Revisit for
-  other hosting.
+  other hosting. `clientIp()` accepts only a valid IP address (anything else counts as
+  "unknown"), so a forged oversized header can't overflow the rate-limit key or mint
+  fresh keys. The `/pay/[id]` page still parses the header inline without that check
+  (an oversized header causes an error page): planned, Phase 13.
 - **TRUNCATE** on `audit_logs` is not blocked by the trigger. Fix: run the app with
   a least-privilege database role without TRUNCATE (planned, Phase 13).
 - **Cleanup** of expired nonces, sessions and rate-limit rows (planned, Phase 10 scheduler).
@@ -103,9 +127,10 @@ state-consistency CHECKs, and an append-only audit log.
 - **Public checkout rate limit returns HTTP 200:** after 60 views/min per IP the
   page shows "Too many requests", but Next.js pages can't set a 429 status. The
   limit is enforced; the payment-status API (Phase 10) returns a proper 429.
-- **Wallets may ignore Solana Pay `reference`** (observed with Phantom mobile's QR
-  scanner): addressed by Transaction Requests (Phase 7b) and the Unmatched payments
-  review list (Phase 9).
+- **Wallets may ignore Solana Pay `reference`** in transfer links (observed with
+  Phantom mobile's QR scanner): Transaction Requests are now the primary path over
+  HTTPS (Phase 7b, verified with Phantom Android); payments without a reference go to
+  the Unmatched payments review list (Phase 9).
 - **Payout wallet program check:** the denylist covers well-known programs and USDC
   mints; checking via RPC that no program is deployed at the address is planned
   (Phase 13).

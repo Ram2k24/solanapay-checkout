@@ -1,6 +1,12 @@
 import QRCode from "qrcode";
 import { describe, expect, it } from "vitest";
-import { buildTransferRequestUrl, encodeTransferRequest, formatTransferAmount } from "@/lib/payments/solana-pay";
+import {
+  buildTransferRequestUrl,
+  encodeTransactionRequest,
+  encodeTransferRequest,
+  formatTransferAmount,
+  paymentLinks,
+} from "@/lib/payments/solana-pay";
 
 // Examples copied verbatim from the Solana Pay specification (SPEC.md, "Examples").
 const SPEC_RECIPIENT = "mvines9iiHiQTysrwkJjGf2gb9Ex9jXJX8ns3qwf2kN";
@@ -81,5 +87,57 @@ describe("encodeTransferRequest", () => {
     const qr = QRCode.create(url, { errorCorrectionLevel: "M" });
     const payload = qr.segments.map((s) => (typeof s.data === "string" ? s.data : Buffer.from(s.data).toString("utf8"))).join("");
     expect(payload).toBe(url);
+  });
+});
+
+describe("encodeTransactionRequest reproduces the spec examples", () => {
+  it("a link without query parameters is not URL-encoded", () => {
+    expect(encodeTransactionRequest("https://example.com/solana-pay")).toBe("solana:https://example.com/solana-pay");
+  });
+
+  it("a link with query parameters is URL-encoded", () => {
+    expect(encodeTransactionRequest("https://example.com/solana-pay?order=12345")).toBe(
+      "solana:https%3A%2F%2Fexample.com%2Fsolana-pay%3Forder%3D12345",
+    );
+  });
+
+  it.each(["http://example.com/solana-pay", "example.com/solana-pay", "solana:https://example.com"])(
+    "rejects %s (wallets must reject anything but absolute HTTPS URLs)",
+    (link) => {
+      expect(() => encodeTransactionRequest(link)).toThrow();
+    },
+  );
+});
+
+describe("paymentLinks", () => {
+  const invoice = {
+    id: "01a0f348-4244-76df-99c6-699a320850f3",
+    recipientWallet: SPEC_RECIPIENT,
+    amount: 10_000_000n,
+    tokenDecimals: 6,
+    tokenMint: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+    reference: "7yqBW2Y7JPKNR92fvtx3czKhVSEwrT6UFjJe3bkPQCWV",
+    invoiceNumber: "INV-2026-00001",
+    description: null,
+  };
+
+  it("uses a transaction request over HTTPS, keeping the transfer link as fallback", () => {
+    expect(paymentLinks(invoice, "Shop", "https://pay.example.com")).toEqual({
+      kind: "transaction-request",
+      primary: "solana:https://pay.example.com/api/pay/01a0f348-4244-76df-99c6-699a320850f3/transaction",
+      transfer: encodeTransferRequest(invoice, "Shop"),
+    });
+  });
+
+  it("puts no payment terms in the transaction request link", () => {
+    const { primary } = paymentLinks(invoice, "Shop", "https://pay.example.com/");
+    expect(primary).not.toMatch(/amount|spl-token|reference|recipient|\?/);
+    expect(primary).not.toContain(invoice.reference);
+  });
+
+  it("falls back to the transfer request over plain http (spec requires HTTPS)", () => {
+    const links = paymentLinks(invoice, "Shop", "http://localhost:3000");
+    expect(links).toEqual({ kind: "transfer-request", primary: encodeTransferRequest(invoice, "Shop"), transfer: links.transfer });
+    expect(links.primary).toBe(links.transfer);
   });
 });
