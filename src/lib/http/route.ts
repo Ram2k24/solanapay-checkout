@@ -25,7 +25,10 @@ export function route<P extends Record<string, string> = Record<string, never>>(
       response = await handler(request, { log, requestId, params });
     } catch (error) {
       if (error instanceof ApiError) {
-        log.info({ code: error.code, fields: error.fields ? Object.keys(error.fields) : undefined }, "request rejected");
+        log.info(
+          { code: error.code, fields: error.fields ? Object.keys(error.fields) : undefined, err: error.cause },
+          "request rejected",
+        );
         response = errorResponse(error.code, error.fields);
       } else if (isDatabaseUnavailable(error)) {
         log.error({ err: error }, "database unavailable");

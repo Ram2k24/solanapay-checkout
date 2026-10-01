@@ -1,4 +1,5 @@
 import "server-only";
+import { isIP } from "node:net";
 import { publicEnv } from "@/lib/config/public-env";
 import { ApiError } from "./api";
 
@@ -14,7 +15,9 @@ export function assertSameOrigin(request: Request): void {
 
 // Client IP for rate limiting. Only the first X-Forwarded-For entry is used, which
 // is trustworthy only behind a proxy that overwrites the header (e.g. Vercel).
+// Anything that isn't an IP address (e.g. a forged, oversized header) counts as
+// "unknown", so it can't overflow the rate-limit key column or mint fresh keys.
 export function clientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || "unknown";
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+  return isIP(forwarded) ? forwarded : "unknown";
 }

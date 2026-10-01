@@ -51,6 +51,11 @@ export function buildTransferRequestUrl(fields: {
   return `solana:${fields.recipient}${query ? `?${query}` : ""}`;
 }
 
+// The message wallets show with a payment request: "INV-2026-00001 · Laptop accessory purchase".
+export function paymentMessage(invoice: Pick<TransferRequestInvoice, "invoiceNumber" | "description">): string {
+  return invoice.description ? `${invoice.invoiceNumber} · ${invoice.description}` : invoice.invoiceNumber;
+}
+
 // The payment link for a stored invoice: USDC transfer of the exact invoice amount
 // to the merchant's wallet, tagged with the invoice's reference.
 export function encodeTransferRequest(invoice: TransferRequestInvoice, merchantName: string): string {
@@ -60,6 +65,6 @@ export function encodeTransferRequest(invoice: TransferRequestInvoice, merchantN
     splToken: invoice.tokenMint,
     reference: invoice.reference,
     label: merchantName,
-    message: invoice.description ? `${invoice.invoiceNumber} · ${invoice.description}` : invoice.invoiceNumber,
+    message: paymentMessage(invoice),
   });
 }

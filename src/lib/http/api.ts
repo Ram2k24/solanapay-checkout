@@ -5,6 +5,8 @@ import type { z } from "zod";
 // are only logged server-side.
 export const API_ERRORS = {
   InvalidRequest: { status: 400, message: "The request is invalid." },
+  InvalidAccount: { status: 400, message: "This wallet account can't be used for payment." },
+  SelfPaymentNotAllowed: { status: 400, message: "This wallet receives the payment, so it can't pay this invoice." },
   Unauthenticated: { status: 401, message: "You are not signed in." },
   InvalidSignature: { status: 401, message: "The signature could not be verified." },
   ChallengeExpired: { status: 401, message: "The sign-in request expired or was already used. Please try again." },
@@ -13,8 +15,10 @@ export const API_ERRORS = {
   NotFound: { status: 404, message: "Not found." },
   MerchantAlreadyExists: { status: 409, message: "A merchant profile already exists for this account." },
   IdempotencyConflict: { status: 409, message: "This Idempotency-Key was already used with a different request." },
+  InvoiceNotPayable: { status: 409, message: "This invoice can no longer be paid. Ask the merchant for a new payment link." },
   RateLimited: { status: 429, message: "Too many requests. Please wait and try again." },
   DatabaseUnavailable: { status: 503, message: "Service temporarily unavailable." },
+  RpcUnavailable: { status: 503, message: "The Solana network could not be reached. Please try again." },
   InternalError: { status: 500, message: "Something went wrong." },
 } as const;
 
@@ -27,8 +31,9 @@ export class ApiError extends Error {
   constructor(
     readonly code: ApiErrorCode,
     readonly fields?: FieldErrors,
+    options?: ErrorOptions, // { cause }: the underlying error, logged server-side only
   ) {
-    super(code);
+    super(code, options);
   }
 }
 
