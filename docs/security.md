@@ -70,6 +70,15 @@ Sessions last 8 hours (absolute).
   [payment-flow.md](payment-flow.md).
 - Invoice creation is rate-limited (30/min per merchant) and audited.
 
+## Public checkout (Phase 7)
+
+- `/pay/[id]` needs no sign-in; the ID is an unguessable UUIDv7 (74 random bits).
+- Reads only allowlisted columns; never exposes the customer reference, merchant
+  email, internal IDs or idempotency data. `noindex, nofollow`.
+- The payment link and QR are built from the stored invoice only, and only while the
+  invoice is payable (effective status PENDING).
+- Rate-limited per IP (60/min).
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -91,6 +100,12 @@ state-consistency CHECKs, and an append-only audit log.
   a least-privilege database role without TRUNCATE (planned, Phase 13).
 - **Cleanup** of expired nonces, sessions and rate-limit rows (planned, Phase 10 scheduler).
 - **Security headers** (CSP, HSTS, …) (planned, Phase 13).
+- **Public checkout rate limit returns HTTP 200:** after 60 views/min per IP the
+  page shows "Too many requests", but Next.js pages can't set a 429 status. The
+  limit is enforced; the payment-status API (Phase 10) returns a proper 429.
+- **Wallets may ignore Solana Pay `reference`** (observed with Phantom mobile's QR
+  scanner): addressed by Transaction Requests (Phase 7b) and the Unmatched payments
+  review list (Phase 9).
 - **Payout wallet program check:** the denylist covers well-known programs and USDC
   mints; checking via RPC that no program is deployed at the address is planned
   (Phase 13).

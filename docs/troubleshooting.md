@@ -124,3 +124,22 @@ non-test database.
 
 **`This module cannot be imported from a Client Component module` from the seed**
 Run it through `npm run db:seed` (it passes `--conditions=react-server` to tsx).
+
+## Wallet payments (Phase 7)
+
+**Phantom says "Not enough SOL" when paying a USDC invoice**
+Every Solana transaction pays a small fee in SOL, even for USDC payments. Fund the
+paying wallet with devnet SOL (https://faucet.solana.com). Also check the wallet is
+in Testnet Mode → Solana Devnet.
+
+**The wallet shows "1", not "$1", or "Unknown Token"**
+Solana Pay amounts are in token units (1 USDC). On devnet tokens have no price, and
+Circle's devnet USDC mint has no name/logo metadata in Phantom, so it appears as
+"Unknown Token 4zMMC…DncDU". On mainnet it shows as USDC.
+
+**Paid by scanning the QR, but the invoice stays Pending**
+Expected until payment detection exists (Phases 9–10). Also note that Phantom mobile
+was observed to omit the Solana Pay reference; see payment-flow.md.
+
+**"Open in wallet" does nothing on a computer**
+Browser extensions generally don't handle `solana:` links; the button is for phones.

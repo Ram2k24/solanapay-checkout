@@ -33,6 +33,7 @@ check "sign-in challenge, same origin"      200 -X POST "$BASE/api/auth/nonce" -
 grep -q "Chain ID: $NEXT_PUBLIC_SOLANA_NETWORK" /tmp/smoke-body.$$ && echo "        message contains 'Chain ID: $NEXT_PUBLIC_SOLANA_NETWORK'" || { echo "        message missing chain ID"; fail=1; }
 check "sign-in challenge, foreign origin"   403 -X POST "$BASE/api/auth/nonce" -H 'origin: https://evil.example' -H 'content-type: application/json' -d "{\"walletAddress\":\"$WALLET\"}"
 check "sign-in challenge, invalid address"  400 -X POST "$BASE/api/auth/nonce" -H "origin: $ORIGIN" -H 'content-type: application/json' -d '{"walletAddress":"not-a-wallet"}'
+check "checkout page, unknown invoice"       404 "$BASE/pay/00000000-0000-7000-8000-000000000000"
 check "session without cookie"              200 "$BASE/api/auth/session"
 grep -q '"authenticated":false' /tmp/smoke-body.$$ && echo "        reports authenticated:false" || { echo "        unexpected session body"; fail=1; }
 rm -f /tmp/smoke-body.$$

@@ -14,7 +14,8 @@ export default async function MerchantLayout({ children }: { children: React.Rea
       <SiteHeader />
       {session ? (
         <div className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[200px_1fr] lg:gap-10">
-          <aside>
+          {/* min-w-0: lets the nav row scroll inside the column instead of widening the page. */}
+          <aside className="min-w-0">
             <MerchantNav />
           </aside>
           <main className="min-w-0">{children}</main>

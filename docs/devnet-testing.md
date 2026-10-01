@@ -67,7 +67,24 @@ Notes:
 **Verified 2026-09-30** with Phantom (Chrome): all checks passed; seed idempotent;
 `APP_ENV=production` seed refused.
 
-## 5. Payments
+## 5. Payment link and QR (Phase 7)
 
-Solana Pay QR codes, USDC payment and on-chain verification are added in
-Phases 7–9; their devnet test steps will be added here.
+| # | Action | Expected |
+|---|---|---|
+| 1 | Create invoice, open its detail page | QR, checkout link, Solana Pay link (`solana:<wallet>?amount=…&spl-token=4zMMC…&reference=…`) |
+| 2 | Open the checkout link in an Incognito window | Public page: amount, merchant, invoice/order, shortened recipient, countdown, QR, Open in wallet; no customer reference |
+| 3 | Scan the QR with a phone wallet on devnet | Payment request for the invoice amount to the merchant wallet (needs devnet SOL for the fee) |
+| 4 | Invoice with 5-minute expiry, reload after expiry | Expired badge; no QR, no payment link or actions; no customer reference (checked in raw HTML) |
+
+**Verified 2026-10-01** (Phantom on Chrome and Android):
+- Checks 1, 2 and 4 passed. The raw HTML of the expired page contains no `solana:` link,
+  no QR, no "Open in wallet" and not the customer reference marker.
+- Check 3: Phantom mobile showed "1" (devnet USDC appears as "Unknown Token" because
+  Circle's devnet mint has no wallet metadata; there's no USD value on devnet) and
+  sent 1 USDC, **but without the reference** (see payment-flow.md, field finding).
+  The invoice correctly stays Pending: detection/verification come in Phases 9–10.
+
+## 6. Payments
+
+Transaction Requests (Phase 7b), in-browser USDC payment (Phase 8) and on-chain
+verification (Phase 9) add their devnet test steps here.

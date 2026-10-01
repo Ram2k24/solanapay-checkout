@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–6 complete (environment, app skeleton, database, wallet sign-in, invoices).
+**Status:** early development. Phases 1–7 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -27,7 +27,10 @@ Implemented so far:
   per-merchant numbering `INV-YYYY-NNNNN`; idempotent creation; payment terms fixed
   by the server and immutable after creation (see [docs/payment-flow.md](docs/payment-flow.md))
 - Merchant dashboard with invoice counts and recent invoices
-- Invoices can't be paid yet: Solana Pay links/QR codes come in Phase 7
+- Solana Pay transfer-request link and QR code for each invoice (spec-tested), and a
+  public checkout page (`/pay/[id]`) with QR, "Open in wallet" and expired state
+- Not yet: payment detection and on-chain verification (Phases 9–10), so invoices stay
+  Pending after payment. Transaction Requests are next (Phase 7b)
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -87,7 +90,7 @@ and the manual test checklist.
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 172 tests: auth, merchants, invoices (incl. concurrency), rules, helpers
+    npm test                # 191 tests: auth, merchants, invoices (incl. concurrency), Solana Pay, checkout
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.

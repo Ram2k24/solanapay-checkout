@@ -80,6 +80,18 @@ Depends on `esbuild` 0.28.2 (already present via Vite). esbuild's `postinstall` 
 **denied** in `allowScripts` (tested: tsx works without it; the binary comes from
 the optional `@esbuild/linux-x64` package). `npm audit`: 0 vulnerabilities.
 
+## Phase 7: verified 2026-10-01
+
+| Package | Version | Type | Deprecated |
+|---|---|---|---|
+| qrcode | 1.5.4 | runtime (server-side SVG QR codes) | no |
+| @types/qrcode | 1.5.6 | dev | no |
+
+`qrcode` was last released 2024-08 (mature, stable); no install scripts;
+`npm audit`: 0 vulnerabilities. Solana Pay spec source:
+`github.com/solana-foundation/pay` (renamed from `solana-pay`),
+`typescript/packages/solana-pay/spec/SPEC.md`.
+
 ## Decisions
 
 - **TypeScript 6.0.3, not 7.0.x.** TS 7 (native compiler) ships without a

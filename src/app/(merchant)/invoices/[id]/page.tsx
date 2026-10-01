@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
+import { CopyButton } from "@/components/checkout/copy-button";
+import { PaymentQr } from "@/components/checkout/payment-qr";
 import { ExpiryCountdown } from "@/components/merchant/expiry-countdown";
 import { LocalTime } from "@/components/merchant/local-time";
 import { StatusBadge } from "@/components/merchant/status-badge";
 import { getCurrentSession } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
+import { publicEnv } from "@/lib/config/public-env";
 import { getCurrentMerchant } from "@/lib/merchant/current";
 import { toInvoiceDto } from "@/lib/payments/invoice-dto";
+import { encodeTransferRequest } from "@/lib/payments/solana-pay";
 
 export const metadata = { title: "Invoice · SolanaPay Checkout" };
 
@@ -22,6 +26,9 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const row = await db.invoice.findFirst({ where: { id, merchantId: merchant.id } });
   if (!row) notFound();
   const invoice = toInvoiceDto(row);
+  // Built from the stored row only (see docs/payment-flow.md, stored-invoice invariant).
+  const checkoutUrl = `${publicEnv.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/pay/${row.id}`;
+  const paymentUrl = invoice.effectiveStatus === "PENDING" ? encodeTransferRequest(row, merchant.name) : null;
 
   const details: [string, React.ReactNode][] = [
     ["Order ID", invoice.orderId ?? "—"],
@@ -62,13 +69,39 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         ))}
       </dl>
 
-      <div className="mt-6 rounded-xl border border-dashed border-slate-300 p-6">
-        <p className="font-medium">Payment link and QR code</p>
-        <p className="mt-1 text-sm text-slate-600">
-          The Solana Pay link and QR code for this invoice are added in the next milestone. This invoice can&apos;t be
-          paid yet.
-        </p>
-      </div>
+      <section className="mt-6 rounded-xl border border-slate-200 p-6">
+        <h2 className="font-medium">Payment link</h2>
+        {paymentUrl ? (
+          <div className="mt-4 flex flex-col gap-6 sm:flex-row">
+            <PaymentQr url={paymentUrl} size={200} />
+            <div className="min-w-0 flex-1 space-y-4 text-sm">
+              <div>
+                <p className="text-slate-500">Customer checkout page</p>
+                <p className="mt-1 break-all font-mono text-xs">{checkoutUrl}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <CopyButton text={checkoutUrl} label="Copy checkout link" />
+                  <a href={checkoutUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-lg border border-slate-300 px-3 font-medium hover:bg-slate-50">
+                    Open checkout
+                  </a>
+                </div>
+              </div>
+              <div>
+                <p className="text-slate-500">Solana Pay link (what the QR code contains)</p>
+                <p className="mt-1 break-all font-mono text-xs text-slate-700">{paymentUrl}</p>
+                <div className="mt-2"><CopyButton text={paymentUrl} label="Copy Solana Pay link" /></div>
+              </div>
+              <p className="text-xs text-slate-500">
+                Customers can scan the QR code with a Solana Pay wallet, or open the checkout page. Payment detection
+                and on-chain verification are added in a later milestone; until then this invoice stays Pending.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-slate-600">
+            This invoice is {invoice.effectiveStatus.toLowerCase()}, so no payment link is shown.
+          </p>
+        )}
+      </section>
     </>
   );
 }

@@ -35,13 +35,14 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
     ├── app/                  # Next.js App Router: folders are URLs
     │   ├── layout.tsx        # root layout (fonts, <html>/<body>)
     │   ├── (merchant)/       # signed-in area: dashboard, onboarding, invoices (shared layout)
+    │   ├── pay/[id]/         # public customer checkout (no sign-in)
     │   ├── page.tsx          # landing page (/)
     │   └── api/
     │       ├── health/       # GET /api/health
     │       ├── auth/         # nonce, verify, logout, session
     │       ├── merchant/     # merchant profile
     │       └── invoices/     # create, list, get
-    ├── components/           # shared UI: header, footer, banner, providers,
+    ├── components/           # shared UI: header, footer, banner, providers, checkout (QR),
     │   └── wallet/           #   wallet button and balances (client components)
     ├── instrumentation.ts    # runs once at server start
     ├── generated/prisma/ # Prisma Client (generated, git-ignored)
