@@ -174,6 +174,14 @@ Findings that shaped the implementation and Phase 9:
    mint as "Unknown" (no token metadata on devnet), and "This domain is new" for the
    tunnel domain.
 
+**Real-app test (Step 4, same day):** the implemented endpoint, scanned from the
+checkout page through a temporary tunnel, produced
+`39m866ogKRdHeuqrePGz7TwXrr3u1bcUsc5eaH2QrxtEUnPyDHR9pycmCCEfj1zd65HqzE2sRKCpJnga8emL9YE3`,
+found by the invoice's stored reference and matching every stored term. An earlier
+scan of the same invoice was approved but never landed; a prompt rescan worked
+(details and the unconfirmed blockhash-expiry explanation in devnet-testing.md §6).
+Phase 9 must expect a transaction to be served and never land.
+
 Only Phantom on Android has been tested; other wallets are unverified.
 
 ## 5. Customer payment (Phase 8: planned)

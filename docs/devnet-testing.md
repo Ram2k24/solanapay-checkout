@@ -120,7 +120,25 @@ only; a new random URL on every start; it stops when the process stops).
 | 4 | Invoice with < 2 minutes left | Wallet shows an error (the server returns 409 `InvoiceNotPayable`) |
 | 5 | App URL http (normal local dev) | QR is the transfer request, with a note that HTTPS enables transaction requests |
 
-**Prototype verified 2026-10-01** with Phantom on Android: see payment-flow.md §4b.
+**Verified 2026-10-01** in the real app (dev server + quick tunnel, Phantom on Android,
+invoice INV-2026-00017, 1 USDC):
+- Checks 1, 2 and 5 passed: the checkout page served the transaction request with the
+  fallback section; Phantom showed "Laptop Store", the SP icon, the tunnel domain, −1
+  "Unknown" (devnet USDC), "This domain is new", and a fee < 0.00001 SOL.
+- Check 3 passed: transaction
+  `39m866ogKRdHeuqrePGz7TwXrr3u1bcUsc5eaH2QrxtEUnPyDHR9pycmCCEfj1zd65HqzE2sRKCpJnga8emL9YE3`
+  (finalized ~5 s after our server served it) was found by the invoice's stored
+  reference and matches the stored amount, decimals, mint and recipient. The invoice
+  stays Pending (verification is Phase 9).
+- **First attempt didn't land:** a scan whose transaction was served at 17:29:15 UTC
+  was approved but never reached the chain (no transaction for the reference, balance
+  unchanged). A rescan approved within seconds landed. Consistent with the wallet
+  keeping our blockhash (valid ~60–90 s) and the approval coming too late, but the
+  cause is **unconfirmed**. The checkout page should ask customers to approve promptly
+  and rescan if a payment doesn't go through.
+- Check 4 (< 2 minutes left) is covered by integration tests; not tried on the phone.
+
+The earlier prototype (throwaway spike) result is in payment-flow.md §4b.
 
 ## 7. Payments
 

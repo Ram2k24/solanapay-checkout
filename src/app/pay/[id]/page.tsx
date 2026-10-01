@@ -76,7 +76,8 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
               <PaymentQr url={checkout.payment.primary} />
               <p className="max-w-sm text-center text-sm text-slate-600">
                 Scan with a Solana Pay wallet such as Phantom or Solflare. Make sure your wallet is set to{" "}
-                <span className="font-medium capitalize">{checkout.network.toLowerCase()}</span>.
+                <span className="font-medium capitalize">{checkout.network.toLowerCase()}</span>. Approve the
+                payment promptly; if it doesn&apos;t go through, scan again.
               </p>
               <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
                 <a href={checkout.payment.primary} className="inline-flex h-11 items-center justify-center rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-800">
