@@ -58,6 +58,24 @@ enum CounterKind {
   @@map("counter_kind")
 }
 
+// Why a real incoming payment could not settle an invoice automatically.
+enum UnmatchedReason {
+  NO_REFERENCE // no Solana Pay reference at all (e.g. a wallet dropped it)
+  UNKNOWN_REFERENCE // has a reference, but no invoice of this merchant uses it
+  AMOUNT_MISMATCH // matches an invoice, but the amount differs (over/under payment)
+  DUPLICATE_PAYMENT // a second valid payment for an invoice that already has one
+  INVOICE_NOT_PAYABLE // matches an invoice that can no longer be paid (expired/failed in the database)
+
+  @@map("unmatched_reason")
+}
+
+enum UnmatchedStatus {
+  OPEN
+  RESOLVED
+
+  @@map("unmatched_status")
+}
+
 enum ActorType {
   USER
   SYSTEM
@@ -73,8 +91,9 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  merchant Merchant?
-  sessions Session[]
+  merchant          Merchant?
+  sessions          Session[]
+  resolvedUnmatched UnmatchedPayment[]
 
   @@map("users")
 }
@@ -90,10 +109,11 @@ model Merchant {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  owner    User      @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
-  wallets         Wallet[]
-  invoices        Invoice[]
-  invoiceCounters InvoiceCounter[]
+  owner             User               @relation(fields: [ownerUserId], references: [id], onDelete: Restrict)
+  wallets           Wallet[]
+  invoices          Invoice[]
+  invoiceCounters   InvoiceCounter[]
+  unmatchedPayments UnmatchedPayment[]
 
   @@map("merchants")
 }
@@ -142,8 +162,9 @@ model Invoice {
   createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
-  payment  Payment?
+  merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  payment           Payment?
+  unmatchedPayments UnmatchedPayment[]
 
   @@unique([merchantId, invoiceNumber])
   @@unique([merchantId, idempotencyKey])
@@ -196,6 +217,45 @@ model Payment {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
 
   @@map("payments")
+}
+
+// Real USDC that reached a merchant's wallet but could not settle an invoice
+// automatically: a suspense account. Never marked paid automatically; the merchant
+// reviews each entry. Evidence columns are immutable (database trigger); only the
+// review fields (status, resolution) change. A signature is recorded either here or
+// in payments, never both.
+model UnmatchedPayment {
+  id                    String          @id @default(uuid(7)) @db.Uuid
+  merchantId            String          @map("merchant_id") @db.Uuid
+  // Set when the reference matched one of the merchant's invoices (AMOUNT_MISMATCH,
+  // DUPLICATE_PAYMENT, INVOICE_NOT_PAYABLE); null otherwise.
+  invoiceId             String?         @map("invoice_id") @db.Uuid
+  reason                UnmatchedReason
+  status                UnmatchedStatus @default(OPEN)
+  signature             String          @unique @db.VarChar(88)
+  network               SolanaNetwork
+  reference             String?         @db.VarChar(44)
+  senderWallet          String?         @map("sender_wallet") @db.VarChar(44)
+  recipientWallet       String          @map("recipient_wallet") @db.VarChar(44)
+  recipientTokenAccount String          @map("recipient_token_account") @db.VarChar(44)
+  tokenMint             String          @map("token_mint") @db.VarChar(44)
+  amount                BigInt
+  slot                  BigInt
+  blockTime             DateTime?       @map("block_time") @db.Timestamptz(3)
+  commitment            Commitment
+  resolutionNote        String?         @map("resolution_note") @db.VarChar(500)
+  resolvedAt            DateTime?       @map("resolved_at") @db.Timestamptz(3)
+  resolvedByUserId      String?         @map("resolved_by_user_id") @db.Uuid
+  createdAt             DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  invoice    Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  resolvedBy User?    @relation(fields: [resolvedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, status, createdAt(sort: Desc)])
+  @@index([invoiceId])
+  @@map("unmatched_payments")
 }
 
 // Append-only record of security- and money-relevant events.

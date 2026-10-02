@@ -11,6 +11,8 @@ erDiagram
     merchants ||--o{ wallets : "payout addresses"
     merchants ||--o{ invoices : issues
     invoices ||--o| payments : "settled by"
+    merchants ||--o{ unmatched_payments : "suspense (review)"
+    invoices |o--o{ unmatched_payments : "duplicate / mismatch for"
     users ||--o{ sessions : "signed in as"
     audit_logs }o..o{ invoices : "references (by entity_type/entity_id)"
 ```
@@ -21,7 +23,8 @@ erDiagram
 | `merchants` | Business profile, one per user (MVP) | `owner_user_id` UNIQUE, FK RESTRICT |
 | `wallets` | Merchant payout addresses (public keys only) | UNIQUE `(merchant_id, address)`; at most one `is_default` per merchant |
 | `invoices` | Payment requests | `reference` UNIQUE; UNIQUE `(merchant_id, invoice_number)`; `amount > 0`; `paid_at` set iff `PAID` |
-| `payments` | Verified on-chain settlements | `signature` UNIQUE (replay protection); `invoice_id` UNIQUE; `amount > 0`; `finalized_at` set iff `FINALIZED` |
+| `payments` | Verified on-chain settlements | `signature` UNIQUE (replay protection); `invoice_id` UNIQUE; `amount > 0`; `finalized_at` set iff `FINALIZED`; evidence immutable, no DELETE (trigger; only CONFIRMED → FINALIZED may change) |
+| `unmatched_payments` | Suspense: real incoming USDC that can't settle an invoice automatically (Phase 9) | `signature` UNIQUE; `amount > 0`; `reason` ↔ `invoice_id` / `reference` consistency; RESOLVED requires note + resolver + time, and is final; invoice must belong to the same merchant; evidence immutable, no DELETE (triggers) |
 | `audit_logs` | Security/money events | Append-only (UPDATE/DELETE blocked by trigger) |
 | `auth_nonces` | One-time sign-in challenges (Phase 4) | `nonce` UNIQUE; single use via `used_at`; 5-minute expiry |
 | `sessions` | Server-side sessions (Phase 4) | `token_hash` UNIQUE (HMAC of the cookie token); `revoked_at`; cascade with user |
@@ -58,6 +61,19 @@ erDiagram
   invoice number, order ID, created_at and the idempotency fields. See
   [payment-flow.md](payment-flow.md).
 
+## Payment ledger rules (Phase 9)
+
+- **One transaction, one record:** a signature is stored in `payments` *or*
+  `unmatched_payments`, never both. Each table's UNIQUE index handles duplicates within
+  it; a trigger on both tables checks the other, under a per-signature advisory lock
+  (`pg_advisory_xact_lock`) so two concurrent inserts can't both pass.
+- **Unmatched reasons:** `NO_REFERENCE` (no reference at all), `UNKNOWN_REFERENCE`
+  (reference not used by any of the merchant's invoices), and three that point at an
+  invoice: `AMOUNT_MISMATCH`, `DUPLICATE_PAYMENT`, `INVOICE_NOT_PAYABLE`.
+- **Evidence is immutable:** payments and unmatched entries can't be edited or deleted.
+  Only the finality upgrade (CONFIRMED → FINALIZED) and resolving an unmatched entry
+  (once, with a note) are allowed.
+
 ## Invoice state machine (stored in `invoices.status`)
 
     DRAFT ──▶ PENDING ──▶ CONFIRMING ──▶ PAID
@@ -86,7 +102,7 @@ there is no drift between schema and database.
 | `npm run db:migrate` | Development: create and apply a migration (`prisma migrate dev`) |
 | `npm run db:deploy` | Production/CI: apply pending migrations only (`prisma migrate deploy`) |
 | `npm run db:status` | Show applied/pending migrations |
-| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 24 checks, rolled back |
+| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 43 checks, rolled back |
 | `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` |
 | `npx prisma studio` | Browse data in a local web UI |
 

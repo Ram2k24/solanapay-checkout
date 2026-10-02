@@ -37,6 +37,16 @@ INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wall
           'TestReference11111111111111111111111111111', 'Sender', 'TestWa11etAddress1111111111111111111111111',
           'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 10000000, 1, 'CONFIRMED', now(), now());
 INSERT INTO audit_logs (actor_type, action, entity_type, entity_id) VALUES ('SYSTEM', 'test', 'invoice', 'x');
+-- A second merchant, and one unmatched (suspense) entry for the first merchant.
+INSERT INTO users (id, wallet_address, updated_at)
+  VALUES ('00000000-0000-4000-8000-000000000005', 'OtherWa11etAddress111111111111111111111111', now());
+INSERT INTO merchants (id, owner_user_id, name, updated_at)
+  VALUES ('00000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000005', 'Other Merchant', now());
+INSERT INTO unmatched_payments (id, merchant_id, reason, signature, network, reference, recipient_wallet,
+                                recipient_token_account, token_mint, amount, slot, commitment, updated_at)
+  VALUES ('00000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-000000000002', 'UNKNOWN_REFERENCE',
+          'UnmatchedSignature1', 'DEVNET', 'SomeOtherReference', 'TestWa11etAddress1111111111111111111111111',
+          'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 5000000, 2, 'CONFIRMED', now());
 
 \o /dev/null
 -- 23514 = check_violation, 23505 = unique_violation, 23503 = foreign_key_violation,
@@ -73,7 +83,10 @@ SELECT pg_temp.expect_error('one payment per invoice',
      SELECT gen_random_uuid(), invoice_id, 'OtherSignature', network, reference, sender_wallet, recipient_wallet,
        recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, '23505');
 SELECT pg_temp.expect_error('payment must reference an existing invoice',
-  $q$UPDATE payments SET invoice_id = gen_random_uuid()$q$, '23503');
+  $q$INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wallet, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, updated_at)
+     SELECT gen_random_uuid(), gen_random_uuid(), 'OrphanSignature', network, reference, sender_wallet, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, '23503');
 SELECT pg_temp.expect_error('FINALIZED requires finalized_at',
   $q$UPDATE payments SET commitment = 'FINALIZED'$q$, '23514');
 SELECT pg_temp.expect_error('one default wallet per merchant',
@@ -114,6 +127,56 @@ SELECT pg_temp.expect_error('invoice reference cannot change after creation',
   $q$UPDATE invoices SET reference = 'OtherReference' WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
 SELECT pg_temp.expect_error('invoice network cannot change after creation',
   $q$UPDATE invoices SET network = 'MAINNET' WHERE invoice_number = 'INV-TEST-1'$q$, 'P0001');
+SELECT pg_temp.expect_error('unmatched amount must be > 0',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', NULL, 'UNKNOWN_REFERENCE', 'SigZero', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 0, 3, 'CONFIRMED', now())$q$, '23514');
+SELECT pg_temp.expect_error('unmatched signature is unique',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', NULL, 'UNKNOWN_REFERENCE', 'UnmatchedSignature1', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, '23505');
+SELECT pg_temp.expect_error('payment signature cannot also be unmatched',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', 'DUPLICATE_PAYMENT', 'TestSignature1', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, 'P0001');
+SELECT pg_temp.expect_error('an unmatched signature cannot also be a payment',
+  $q$INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wallet, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, updated_at)
+     SELECT gen_random_uuid(), invoice_id, 'UnmatchedSignature1', network, reference, sender_wallet, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, 'P0001');
+SELECT pg_temp.expect_error('invoice-specific reason requires an invoice',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', NULL, 'DUPLICATE_PAYMENT', 'SigDup', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, '23514');
+SELECT pg_temp.expect_error('unknown reference cannot name an invoice',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000003', 'UNKNOWN_REFERENCE', 'SigUnk', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, '23514');
+SELECT pg_temp.expect_error('NO_REFERENCE means no reference',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', NULL, 'NO_REFERENCE', 'SigNoRef', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, '23514');
+SELECT pg_temp.expect_error('unmatched invoice must belong to the same merchant',
+  $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
+       recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000006', '00000000-0000-4000-8000-000000000003', 'DUPLICATE_PAYMENT', 'SigOther', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, 'P0001');
+SELECT pg_temp.expect_error('RESOLVED requires a note and a resolver',
+  $q$UPDATE unmatched_payments SET status = 'RESOLVED', resolved_at = now() WHERE id = '00000000-0000-4000-8000-000000000004'$q$, '23514');
+SELECT pg_temp.expect_error('resolution note cannot be blank',
+  $q$UPDATE unmatched_payments SET status = 'RESOLVED', resolved_at = now(), resolved_by_user_id = '00000000-0000-4000-8000-000000000001', resolution_note = '   ' WHERE id = '00000000-0000-4000-8000-000000000004'$q$, '23514');
+SELECT pg_temp.expect_error('unmatched evidence is immutable',
+  $q$UPDATE unmatched_payments SET amount = 1 WHERE id = '00000000-0000-4000-8000-000000000004'$q$, 'P0001');
+SELECT pg_temp.expect_error('unmatched entries cannot be deleted',
+  $q$DELETE FROM unmatched_payments WHERE id = '00000000-0000-4000-8000-000000000004'$q$, 'P0001');
+SELECT pg_temp.expect_error('payment evidence is immutable',
+  $q$UPDATE payments SET amount = 1$q$, 'P0001');
+SELECT pg_temp.expect_error('payment recipient is immutable',
+  $q$UPDATE payments SET recipient_wallet = 'AttackerWallet111111111111111111111111111111'$q$, 'P0001');
+SELECT pg_temp.expect_error('payments cannot be deleted',
+  $q$DELETE FROM payments$q$, 'P0001');
+-- Allowed changes: finality upgrade and resolving once; then the next change is rejected.
+UPDATE payments SET commitment = 'FINALIZED', finalized_at = now(), updated_at = now();
+INSERT INTO results SELECT 'payment finality upgrade is allowed', CASE WHEN commitment = 'FINALIZED' THEN 'PASS' ELSE 'FAIL' END FROM payments LIMIT 1;
+SELECT pg_temp.expect_error('FINALIZED payment cannot be downgraded',
+  $q$UPDATE payments SET commitment = 'CONFIRMED', finalized_at = NULL$q$, 'P0001');
+UPDATE unmatched_payments SET status = 'RESOLVED', resolved_at = now(), updated_at = now(),
+  resolved_by_user_id = '00000000-0000-4000-8000-000000000001', resolution_note = 'Refunded to sender' WHERE id = '00000000-0000-4000-8000-000000000004';
+INSERT INTO results SELECT 'resolving an unmatched entry is allowed', CASE WHEN status = 'RESOLVED' THEN 'PASS' ELSE 'FAIL' END FROM unmatched_payments WHERE id = '00000000-0000-4000-8000-000000000004';
+SELECT pg_temp.expect_error('a resolution is final',
+  $q$UPDATE unmatched_payments SET status = 'OPEN', resolved_at = NULL, resolved_by_user_id = NULL, resolution_note = NULL WHERE id = '00000000-0000-4000-8000-000000000004'$q$, 'P0001');
 \o
 -- Lifecycle fields stay updatable (Phases 9-10 need this).
 UPDATE invoices SET status = 'EXPIRED', updated_at = now() WHERE invoice_number = 'INV-TEST-1';

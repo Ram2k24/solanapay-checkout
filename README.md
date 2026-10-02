@@ -84,7 +84,7 @@ Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/dat
 
     npm run db:deploy     # apply migrations
     npm run db:status     # check migration state
-    npm run db:check      # run the 24 database constraint checks (rolled back)
+    npm run db:check      # run the 43 database constraint checks (rolled back)
 
 ## Devnet Setup
 See [docs/devnet-testing.md](docs/devnet-testing.md): wallet setup, devnet SOL/USDC faucets,
