@@ -36,6 +36,7 @@ check "sign-in challenge, invalid address"  400 -X POST "$BASE/api/auth/nonce" -
 check "checkout page, unknown invoice"       404 "$BASE/pay/00000000-0000-7000-8000-000000000000"
 check "tx request preflight (CORS)"         204 -X OPTIONS "$BASE/api/pay/00000000-0000-7000-8000-000000000000/transaction"
 check "tx request, unknown invoice"          404 -X POST "$BASE/api/pay/00000000-0000-7000-8000-000000000000/transaction" -H 'content-type: application/json' -d "{\"account\":\"$WALLET\"}"
+check "invoice status, unknown invoice"      404 "$BASE/api/pay/00000000-0000-7000-8000-000000000000/status"
 check "Solana Pay icon"                      200 "$BASE/solana-pay-icon.svg"
 check "unmatched payments, no session"       401 "$BASE/api/payments/unmatched"
 check "transaction lookup, no session"       401 -X POST "$BASE/api/payments/lookup" -H "origin: $ORIGIN" -H 'content-type: application/json' -d '{"signature":"x"}'

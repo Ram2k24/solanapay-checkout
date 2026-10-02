@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import type { Invoice, Payment } from "@/generated/prisma/client";
 import { db } from "@/lib/db/client";
 import { formatUnits } from "@/lib/money/format";
 import { shortenAddress } from "@/lib/solana/address";
@@ -25,10 +26,33 @@ export type PublicCheckout = {
   // Only while the invoice can be paid (effective status PENDING); built from the
   // stored invoice row, never from request input.
   payment: PaymentLinks | null;
-  // The verified on-chain payment (CONFIRMING or PAID). Public chain data only: the
-  // transaction signature and its time, not the payer's wallet.
-  confirmation: { signature: string; amountDisplay: string; blockTime: string | null; finalized: boolean; explorerUrl: string } | null;
+  confirmation: PublicConfirmation | null;
 };
+
+// The verified on-chain payment (CONFIRMING or PAID), as customers may see it on the
+// checkout page and from the status API. Public chain data only: the transaction
+// signature and its time, never the payer's wallet.
+export type PublicConfirmation = {
+  signature: string;
+  amountDisplay: string;
+  blockTime: string | null;
+  finalized: boolean;
+  explorerUrl: string;
+};
+
+export function toPublicConfirmation(
+  payment: Pick<Payment, "signature" | "amount" | "blockTime" | "commitment"> | null,
+  invoice: Pick<Invoice, "tokenDecimals" | "network">,
+): PublicConfirmation | null {
+  if (!payment) return null;
+  return {
+    signature: payment.signature,
+    amountDisplay: formatUnits(payment.amount, invoice.tokenDecimals),
+    blockTime: payment.blockTime?.toISOString() ?? null,
+    finalized: payment.commitment === "FINALIZED",
+    explorerUrl: explorerTxUrl(payment.signature, invoice.network),
+  };
+}
 
 export async function getPublicCheckout(
   id: string,
@@ -72,14 +96,6 @@ export async function getPublicCheckout(
     expiresAt: invoice.expiresAt.toISOString(),
     status,
     payment: status === "PENDING" ? paymentLinks(invoice, invoice.merchant.name, appUrl) : null,
-    confirmation: invoice.payment
-      ? {
-          signature: invoice.payment.signature,
-          amountDisplay: formatUnits(invoice.payment.amount, invoice.tokenDecimals),
-          blockTime: invoice.payment.blockTime?.toISOString() ?? null,
-          finalized: invoice.payment.commitment === "FINALIZED",
-          explorerUrl: explorerTxUrl(invoice.payment.signature, invoice.network),
-        }
-      : null,
+    confirmation: toPublicConfirmation(invoice.payment, invoice),
   };
 }
