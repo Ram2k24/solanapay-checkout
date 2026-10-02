@@ -76,17 +76,17 @@ SELECT pg_temp.expect_error('signature cannot be reused (replay)',
   $q$INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wallet, recipient_wallet,
        recipient_token_account, token_mint, amount, slot, commitment, verified_at, updated_at)
      SELECT gen_random_uuid(), gen_random_uuid(), signature, network, reference, sender_wallet, recipient_wallet,
-       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, '23505');
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments WHERE signature = 'TestSignature1'$q$, '23505');
 SELECT pg_temp.expect_error('one payment per invoice',
   $q$INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wallet, recipient_wallet,
        recipient_token_account, token_mint, amount, slot, commitment, verified_at, updated_at)
      SELECT gen_random_uuid(), invoice_id, 'OtherSignature', network, reference, sender_wallet, recipient_wallet,
-       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, '23505');
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments WHERE signature = 'TestSignature1'$q$, '23505');
 SELECT pg_temp.expect_error('payment must reference an existing invoice',
   $q$INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wallet, recipient_wallet,
        recipient_token_account, token_mint, amount, slot, commitment, verified_at, updated_at)
      SELECT gen_random_uuid(), gen_random_uuid(), 'OrphanSignature', network, reference, sender_wallet, recipient_wallet,
-       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, '23503');
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments WHERE signature = 'TestSignature1'$q$, '23503');
 SELECT pg_temp.expect_error('FINALIZED requires finalized_at',
   $q$UPDATE payments SET commitment = 'FINALIZED'$q$, '23514');
 SELECT pg_temp.expect_error('one default wallet per merchant',
@@ -140,7 +140,7 @@ SELECT pg_temp.expect_error('an unmatched signature cannot also be a payment',
   $q$INSERT INTO payments (id, invoice_id, signature, network, reference, sender_wallet, recipient_wallet,
        recipient_token_account, token_mint, amount, slot, commitment, verified_at, updated_at)
      SELECT gen_random_uuid(), invoice_id, 'UnmatchedSignature1', network, reference, sender_wallet, recipient_wallet,
-       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments LIMIT 1$q$, 'P0001');
+       recipient_token_account, token_mint, amount, slot, commitment, verified_at, now() FROM payments WHERE signature = 'TestSignature1'$q$, 'P0001');
 SELECT pg_temp.expect_error('invoice-specific reason requires an invoice',
   $q$INSERT INTO unmatched_payments (id, merchant_id, invoice_id, reason, signature, network, reference, recipient_wallet,
        recipient_token_account, token_mint, amount, slot, commitment, updated_at) VALUES (gen_random_uuid(), '00000000-0000-4000-8000-000000000002', NULL, 'DUPLICATE_PAYMENT', 'SigDup', 'DEVNET', 'Ref', 'TestWa11etAddress1111111111111111111111111', 'TokenAccount', '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU', 1000000, 3, 'CONFIRMED', now())$q$, '23514');
@@ -167,9 +167,13 @@ SELECT pg_temp.expect_error('payment recipient is immutable',
   $q$UPDATE payments SET recipient_wallet = 'AttackerWallet111111111111111111111111111111'$q$, 'P0001');
 SELECT pg_temp.expect_error('payments cannot be deleted',
   $q$DELETE FROM payments$q$, 'P0001');
+SELECT pg_temp.expect_error('invoice check attempts cannot be negative',
+  $q$UPDATE invoice_checks SET attempts = -1$q$, '23514');
+SELECT pg_temp.expect_error('one scheduling row per invoice',
+  $q$INSERT INTO invoice_checks (invoice_id, updated_at) SELECT invoice_id, now() FROM invoice_checks LIMIT 1$q$, '23505');
 -- Allowed changes: finality upgrade and resolving once; then the next change is rejected.
 UPDATE payments SET commitment = 'FINALIZED', finalized_at = now(), updated_at = now();
-INSERT INTO results SELECT 'payment finality upgrade is allowed', CASE WHEN commitment = 'FINALIZED' THEN 'PASS' ELSE 'FAIL' END FROM payments LIMIT 1;
+INSERT INTO results SELECT 'payment finality upgrade is allowed', CASE WHEN commitment = 'FINALIZED' THEN 'PASS' ELSE 'FAIL' END FROM payments WHERE signature = 'TestSignature1';
 SELECT pg_temp.expect_error('FINALIZED payment cannot be downgraded',
   $q$UPDATE payments SET commitment = 'CONFIRMED', finalized_at = NULL$q$, 'P0001');
 UPDATE unmatched_payments SET status = 'RESOLVED', resolved_at = now(), updated_at = now(),
@@ -181,6 +185,11 @@ SELECT pg_temp.expect_error('a resolution is final',
 -- Lifecycle fields stay updatable (Phases 9-10 need this).
 UPDATE invoices SET status = 'EXPIRED', updated_at = now() WHERE invoice_number = 'INV-TEST-1';
 INSERT INTO results SELECT 'invoice status can still change (lifecycle)', CASE WHEN status = 'EXPIRED' THEN 'PASS' ELSE 'FAIL' END FROM invoices WHERE invoice_number = 'INV-TEST-1';
+
+-- Every invoice gets a scheduling row from the trigger (fixture invoices included).
+INSERT INTO results SELECT 'every invoice has a scheduling row (trigger)',
+  CASE WHEN NOT EXISTS (SELECT 1 FROM invoices i LEFT JOIN invoice_checks c ON c.invoice_id = i.id WHERE c.invoice_id IS NULL)
+            AND (SELECT count(*) FROM invoices) > 0 THEN 'PASS' ELSE 'FAIL' END;
 
 \pset footer off
 SELECT test, outcome FROM results;

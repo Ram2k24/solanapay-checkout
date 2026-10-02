@@ -165,6 +165,7 @@ model Invoice {
   merchant          Merchant           @relation(fields: [merchantId], references: [id], onDelete: Restrict)
   payment           Payment?
   unmatchedPayments UnmatchedPayment[]
+  check             InvoiceCheck?
 
   @@unique([merchantId, invoiceNumber])
   @@unique([merchantId, idempotencyKey])
@@ -256,6 +257,26 @@ model UnmatchedPayment {
   @@index([merchantId, status, createdAt(sort: Desc)])
   @@index([invoiceId])
   @@map("unmatched_payments")
+}
+
+// When the reconciler (Phase 10) should next look at an invoice on-chain. One row per
+// invoice, created by a database trigger when the invoice is inserted, so no invoice
+// can be left unscheduled. lease_until is the cross-worker claim: a worker that takes
+// an invoice sets it, and others skip the row until it passes.
+model InvoiceCheck {
+  invoiceId     String    @id @map("invoice_id") @db.Uuid
+  nextCheckAt   DateTime? @map("next_check_at") @db.Timestamptz(3) // null: no further checks
+  lastCheckedAt DateTime? @map("last_checked_at") @db.Timestamptz(3)
+  attempts      Int       @default(0) // consecutive failed checks (RPC errors), for backoff
+  lastError     String?   @map("last_error") @db.VarChar(500)
+  leaseUntil    DateTime? @map("lease_until") @db.Timestamptz(3) // null: not claimed
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([nextCheckAt])
+  @@map("invoice_checks")
 }
 
 // Append-only record of security- and money-relevant events.

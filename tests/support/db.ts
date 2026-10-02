@@ -5,6 +5,6 @@ export async function resetDatabase(): Promise<void> {
   if (!new URL(process.env.DATABASE_URL ?? "").pathname.endsWith("_test")) {
     throw new Error("resetDatabase() only runs against a *_test database");
   }
-  await db.$executeRaw`TRUNCATE users, merchants, wallets, invoices, payments, unmatched_payments, audit_logs,
+  await db.$executeRaw`TRUNCATE users, merchants, wallets, invoices, invoice_checks, payments, unmatched_payments, audit_logs,
     auth_nonces, sessions, rate_limits RESTART IDENTITY CASCADE`;
 }
