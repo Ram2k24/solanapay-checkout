@@ -91,6 +91,7 @@ export function createStatusPoller(options: StatusPollerOptions) {
 
     const controller = new AbortController();
     inFlight = controller;
+    if (state === "paused") setState("active"); // e.g. the tab is visible again: show it right away
     const timeout = timers.setTimeout(() => controller.abort(), POLLING.requestTimeoutMs);
     let result: FetchResult;
     try {

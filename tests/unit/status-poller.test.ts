@@ -103,6 +103,7 @@ describe("hidden tab", () => {
     setHidden(false);
     await advance(0);
     expect(server.fetchStatus).toHaveBeenCalledTimes(1);
+    expect(poller.state).toBe("active"); // no longer "paused" while that request runs
   });
 
   it("cancels the pending poll when the tab is hidden", async () => {

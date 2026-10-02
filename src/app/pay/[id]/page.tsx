@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/checkout/copy-button";
 import { PaymentQr } from "@/components/checkout/payment-qr";
+import { StatusWatcher } from "@/components/checkout/status-watcher";
 import { ExpiryCountdown } from "@/components/merchant/expiry-countdown";
 import { LocalTime } from "@/components/merchant/local-time";
 import { StatusBadge } from "@/components/merchant/status-badge";
@@ -11,6 +12,7 @@ import { NetworkBanner } from "@/components/network-banner";
 import { ApiError } from "@/lib/http/api";
 import { enforceRateLimit } from "@/lib/http/rate-limit";
 import { getPublicCheckout } from "@/lib/payments/checkout";
+import { POLLING } from "@/lib/payments/status-poller";
 
 // Public: payment links are shared with customers, so no sign-in. Kept out of search engines.
 export const metadata: Metadata = { title: "Pay invoice · SolanaPay Checkout", robots: { index: false, follow: false } };
@@ -35,6 +37,12 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
   const { id } = await params;
   const checkout = await getPublicCheckout(id);
   if (!checkout) notFound();
+  // Watch for changes while the invoice can still change for the customer: PENDING,
+  // CONFIRMING, or shown as EXPIRED within 5 minutes (a last-second payment may still land).
+  const watch =
+    checkout.status === "PENDING" ||
+    checkout.status === "CONFIRMING" ||
+    (checkout.status === "EXPIRED" && Date.now() < new Date(checkout.expiresAt).getTime() + POLLING.postExpiryWindowMs);
 
   return (
     <>
@@ -127,6 +135,7 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
               {STATUS_MESSAGES[checkout.status as keyof typeof STATUS_MESSAGES]}
             </p>
           )}
+          {watch && <StatusWatcher invoiceId={id} initialStatus={checkout.status} expiresAt={checkout.expiresAt} />}
         </div>
         <p className="mt-4 text-center text-xs text-slate-500">
           Never share your seed phrase or private key. This page will never ask for them.
