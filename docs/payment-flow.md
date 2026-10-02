@@ -15,7 +15,8 @@ phase is implemented; nothing below "planned" exists yet.
                                                                   transfer + reference  (Phase 8: planned in-browser)
                                   find tx by reference,
                                   verify against stored invoice
-                                  CONFIRMING → PAID              ◀── confirmed / finalized (Phases 9–10: planned)
+                                  CONFIRMING → PAID              ◀── confirmed / finalized (Phase 9: implemented;
+                                                                     automatic detection: Phase 10)
 
 ## 1. Invoice creation (Phase 6: implemented)
 
@@ -184,5 +185,91 @@ Phase 9 must expect a transaction to be served and never land.
 
 Only Phantom on Android has been tested; other wallets are unverified.
 
-## 5. Customer payment (Phase 8: planned)
-## 6. Verification and detection (Phases 9–10: planned)
+## 5. In-browser payment (Phase 8: planned)
+## 6. Verification (Phase 9: implemented)
+
+**Never paid on the browser's word.** An invoice becomes PAID only when the server
+finds the transaction on-chain itself and it matches the **stored** invoice. A wallet
+saying "sent", a returned signature, or a signature a user pastes is at most a lookup
+key.
+
+### What counts as a payment
+
+`src/lib/payments/verify-payment.ts` (pure functions, unit-tested on real devnet
+transactions saved in `tests/fixtures/solana/`). The transaction is read in raw
+`json` encoding (not `jsonParsed`, whose token parser mislabels a reference as a
+multisig signer), with each account's signer/writable role resolved from the header,
+including v0 address lookup tables.
+
+1. **Did it credit the merchant?** (`readIncomingTransfer`) The transaction succeeded,
+   and the net balance change of the merchant's token account is positive. That account
+   is the ATA of the **stored** recipient wallet for the **stored** mint under the
+   classic Token program (the Solana Pay spec allows no other account). Otherwise the
+   transaction is irrelevant: wrong recipient, mint, Token-2022 or failed.
+2. **Does it settle this invoice?** (`matchInvoice`) Exactly one top-level Token
+   `Transfer`/`TransferChecked` into that account carries the invoice's reference as a
+   **read-only, non-signer** account (TransferChecked: mint and 6 decimals checked), and
+   **both** that instruction's amount **and** the net credit equal the stored amount
+   (exact; decision 2026-10-02). Signer accounts never count as references: Phantom
+   appends its own signer to the transfer.
+3. **Network:** the RPC's genesis hash must be the configured cluster's
+   (`GENESIS_HASH`, checked once per process); the invoice's network must match.
+4. **Finality:** `confirmed` → payment CONFIRMED, invoice **CONFIRMING**; `finalized` →
+   FINALIZED, invoice **PAID** (`paid_at`). A later check upgrades CONFIRMED → FINALIZED.
+5. **Late:** block time after `expires_at` (or unknown) → still settles (the money
+   arrived), with `late = true` and a "Paid late" badge for review (decision A).
+
+The transfer doesn't have to be the last instruction (a rule for wallets building
+transactions); what matters is reference, destination and amount on the same
+instruction plus an exact net credit, which rules out tricks with extra instructions.
+
+### Recording: exactly once
+
+`checkInvoicePayment` (`src/lib/payments/check-payment.ts`): signatures for the stored
+reference, oldest first, failed ones skipped; for each, one database transaction with
+the invoice row locked (`SELECT … FOR UPDATE`).
+
+| Finding | Recorded as |
+|---|---|
+| Settles, invoice PENDING | `payments` row; PENDING → CONFIRMING (→ PAID if finalized), via `assertTransition`, audited |
+| Already recorded, now finalized | CONFIRMED → FINALIZED; CONFIRMING → PAID |
+| Settles, but the invoice already has a payment | unmatched `DUPLICATE_PAYMENT` (never paid twice) |
+| Reference present, amount not exact | unmatched `AMOUNT_MISMATCH`; invoice stays PENDING |
+| Invoice EXPIRED/FAILED in the database | unmatched `INVOICE_NOT_PAYABLE` |
+| Found by the reference, not on a valid transfer | unmatched `NO_REFERENCE` / `UNKNOWN_REFERENCE` (or left to the merchant's invoice whose reference it carries) |
+| Doesn't credit the merchant | nothing |
+| Not yet visible at `confirmed` (e.g. served by a transaction request, never sent) | nothing; a later check sees it if it lands |
+
+Re-running is always safe. Concurrent checks serialize on the row lock, and the
+database independently guarantees one record per transaction (unique signatures plus a
+cross-table trigger under an advisory lock; a test runs 10 checks at once). Payment and
+unmatched evidence is immutable (see database.md).
+
+### Unmatched payments (suspense)
+
+Real USDC that reached the merchant but can't settle an invoice automatically. Listed
+under **Unmatched payments** (open count in the navigation) with a plain-language
+reason. The merchant handles it outside the app (refund, or accept it against an
+invoice manually) and marks it **resolved with a note**: final and audited, so write a
+note that will still make sense later. Assigning an entry to an invoice from the app is
+deliberately not offered (manual matching of money is risky; decision 2026-10-02).
+
+### Triggers (Phase 9)
+
+- **Check for payment** on the invoice page (`POST /api/invoices/[id]/verify`).
+- **Look up a transaction** (`POST /api/payments/lookup {signature}`): verifies a
+  transaction against the merchant's payout wallet and Circle's USDC. Not paying the
+  merchant: rejected, nothing recorded. Carrying one of the merchant's references: that
+  invoice is checked. Otherwise: unmatched.
+- Automatic detection (polling, expiry) is Phase 10.
+
+### Verified on devnet (2026-10-02)
+
+- INV-2026-00017 → **PAID** from its phone payment
+  `39m866ogKRdHeuqrePGz7TwXrr3u1bcUsc5eaH2QrxtEUnPyDHR9pycmCCEfj1zd65HqzE2sRKCpJnga8emL9YE3` (finalized; not late), via Check for payment.
+- Phantom's reference-less payment `5txudqhx…` (Phase 7 field finding) → recorded as
+  `NO_REFERENCE` via lookup, then resolved.
+- The customer page shows "Payment confirmed" with signature and Explorer link, without
+  the payer's wallet.
+
+## 7. Detection and expiry (Phase 10: planned)

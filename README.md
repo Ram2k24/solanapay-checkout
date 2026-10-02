@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–7b complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests).
+**Status:** early development. Phases 1–7b and 9 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, on-chain payment verification). Phase 8 (in-browser payment) is next.
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -33,8 +33,16 @@ Implemented so far:
   our server for an unsigned USDC transaction built from the stored invoice, so the
   payment reference is always included; the plain transfer link remains as a fallback
   (see [docs/payment-flow.md](docs/payment-flow.md))
-- Not yet: payment detection and on-chain verification (Phases 9–10), so invoices stay
-  Pending after payment
+- On-chain payment verification: the server finds the payment by its Solana Pay
+  reference and checks recipient, mint, exact amount, reference, network (genesis hash)
+  and finality against the stored invoice; Confirming → Paid; late payments flagged
+- Unmatched payments (suspense list): real USDC that can't settle an invoice (no or
+  unknown reference, wrong amount, paid twice, closed invoice) is recorded for review,
+  never auto-paid; merchants look up transactions by signature and resolve entries
+- Payment details on the invoice page, "Payment confirmed" on the customer page, USDC
+  received on the dashboard
+- Not yet: automatic detection (polling) and expiry updates (Phase 10); until then the
+  merchant clicks Check for payment
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -94,7 +102,7 @@ and the manual test checklist.
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 237 tests: auth, merchants, invoices (incl. concurrency), Solana Pay, checkout, transaction requests
+    npm test                # 294 tests: auth, merchants, invoices, Solana Pay, transaction requests, payment verification (real devnet fixtures, concurrency)
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.
@@ -116,7 +124,9 @@ _Coming soon._
 _Coming soon._
 
 ## Solana Transaction
-_A verified devnet payment signature will be linked here._
+A devnet USDC payment made through a Solana Pay transaction request and verified by the
+backend (INV-2026-00017, 1 USDC, finalized):
+[`39m866og…`](https://explorer.solana.com/tx/39m866ogKRdHeuqrePGz7TwXrr3u1bcUsc5eaH2QrxtEUnPyDHR9pycmCCEfj1zd65HqzE2sRKCpJnga8emL9YE3?cluster=devnet)
 
 ## License
 _To be decided._

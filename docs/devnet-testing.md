@@ -140,7 +140,21 @@ invoice INV-2026-00017, 1 USDC):
 
 The earlier prototype (throwaway spike) result is in payment-flow.md §4b.
 
-## 7. Payments
+## 7. Payment verification (Phase 9)
 
-In-browser USDC payment (Phase 8) and on-chain verification (Phase 9) add their
-devnet test steps here.
+| # | Action | Expected |
+|---|---|---|
+| 1 | Pay an invoice (phone, §6), then **Check for payment** on its page | Paid (or Confirming, then Paid on a later check): amount, sender, block time, slot, signature, Explorer link |
+| 2 | Check again | Nothing changes (idempotent) |
+| 3 | **Unmatched payments → Look up a transaction** with a payment that has no reference | Recorded as "No reference"; open count in the navigation |
+| 4 | Look up a transaction that doesn't pay your wallet | "This transaction doesn't send USDC to your payout wallet."; nothing recorded |
+| 5 | **Mark resolved** with a note | Moves to Resolved with the note; final |
+| 6 | Customer page of the paid invoice | "Payment confirmed" with signature and Explorer link; no QR, no payer wallet |
+| 7 | Dashboard | USDC received = sum of finalized payments; Unmatched to review = open count |
+
+**Verified 2026-10-02** (live devnet RPC): INV-2026-00017 → Paid (`39m866og…`, not late);
+`5txudqhx…` → No reference → resolved; customer page and dashboard as expected.
+
+## 8. In-browser payment
+
+Phase 8 adds its devnet test steps here.

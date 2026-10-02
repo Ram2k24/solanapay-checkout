@@ -99,12 +99,31 @@ Sessions last 8 hours (absolute).
 - **The server never signs** and serving a transaction is not evidence of payment.
 - Logs the request ID, invoice ID and the customer's public address.
 
+## Payment verification (Phase 9)
+
+- **Server-side only:** status changes come from on-chain verification against the
+  stored invoice (payment-flow.md §6), never from client input. Pasted signatures are
+  lookup keys; the server fetches and checks the transaction itself.
+- **Cluster check:** verification refuses to run unless the RPC's genesis hash is the
+  configured network's.
+- **Exactly once:** unique signatures, one payment per invoice, a cross-table trigger
+  (payments vs unmatched), row locks; immutable, undeletable evidence.
+- **No junk records:** a looked-up transaction that doesn't pay the merchant's wallet in
+  USDC is rejected and not stored.
+- **Routes** (session, Origin check, merchant scoping; another merchant's data is 404):
+  verify 10/min per invoice, lookup 20/min per merchant, resolve 30/min per merchant.
+- **Public data:** the checkout page shows the transaction signature and time once paid,
+  never the payer's wallet.
+- **Audit:** `payment.recorded`, `payment.finalized`, `invoice.status_changed`,
+  `payment.unmatched`, `unmatched.resolved`, with actor and request ID.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
 from `src/lib/http/api.ts` (`InvalidRequest`, `Unauthenticated`, `InvalidSignature`,
 `ChallengeExpired`, `ForbiddenOrigin`, `RateLimited`, `DatabaseUnavailable`,
 `InvalidAccount`, `SelfPaymentNotAllowed`, `InvoiceNotPayable`, `RpcUnavailable`,
+`InvalidRecipient`, `TransactionFailed`, `TransactionNotFound`, `PaymentAlreadyProcessed`,
 `InternalError`). Every response carries `x-request-id` and `cache-control: no-store`.
 
 ## Database-level protections
