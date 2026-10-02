@@ -20,7 +20,8 @@
     "test:watch": "vitest",
     "db:test:setup": "./scripts/test-db-setup.sh",
     "smoke": "./scripts/smoke-test.sh",
-    "db:seed": "tsx --conditions=react-server scripts/seed-dev.ts"
+    "db:seed": "tsx --conditions=react-server scripts/seed-dev.ts",
+    "reconciler": "node scripts/reconciler-loop.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

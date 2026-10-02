@@ -40,6 +40,7 @@ check "invoice status, unknown invoice"      404 "$BASE/api/pay/00000000-0000-70
 check "Solana Pay icon"                      200 "$BASE/solana-pay-icon.svg"
 check "unmatched payments, no session"       401 "$BASE/api/payments/unmatched"
 check "transaction lookup, no session"       401 -X POST "$BASE/api/payments/lookup" -H "origin: $ORIGIN" -H 'content-type: application/json' -d '{"signature":"x"}'
+check "reconciler, no secret"               401 -X POST "$BASE/api/internal/reconcile"
 check "session without cookie"              200 "$BASE/api/auth/session"
 grep -q '"authenticated":false' /tmp/smoke-body.$$ && echo "        reports authenticated:false" || { echo "        unexpected session body"; fail=1; }
 rm -f /tmp/smoke-body.$$

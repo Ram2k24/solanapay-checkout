@@ -10,6 +10,7 @@ export const API_ERRORS = {
   InvalidRecipient: { status: 400, message: "This transaction doesn't send USDC to your payout wallet." },
   TransactionFailed: { status: 400, message: "This transaction failed on Solana, so no funds moved." },
   Unauthenticated: { status: 401, message: "You are not signed in." },
+  InvalidCredentials: { status: 401, message: "Invalid or missing credentials." },
   InvalidSignature: { status: 401, message: "The signature could not be verified." },
   ChallengeExpired: { status: 401, message: "The sign-in request expired or was already used. Please try again." },
   ForbiddenOrigin: { status: 403, message: "Request origin not allowed." },

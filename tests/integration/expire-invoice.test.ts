@@ -72,13 +72,13 @@ describe("scheduling rows", () => {
 describe("chain-first expiry", () => {
   it("doesn't touch an invoice still inside the 180 s grace period (no chain check)", async () => {
     const inv = await invoice(secondsAgo(60));
-    expect(await expireIfUnpaid(inv.id, ctx)).toEqual({ outcome: "not-due", status: "PENDING" });
+    expect(await expireIfUnpaid(inv.id, ctx)).toMatchObject({ outcome: "not-due", status: "PENDING" });
     expect(getSignaturesForReference).not.toHaveBeenCalled();
   });
 
   it("checks the chain first, then expires an unpaid invoice (audited)", async () => {
     const inv = await invoice(secondsAgo(200));
-    expect(await expireIfUnpaid(inv.id, ctx)).toEqual({ outcome: "expired", status: "EXPIRED" });
+    expect(await expireIfUnpaid(inv.id, ctx)).toMatchObject({ outcome: "expired", status: "EXPIRED" });
     expect(getSignaturesForReference).toHaveBeenCalledTimes(1);
     expect(await statusOf(inv.id)).toBe("EXPIRED");
     expect(await db.auditLog.findFirstOrThrow({ where: { action: "invoice.expired" } })).toMatchObject({
@@ -89,7 +89,7 @@ describe("chain-first expiry", () => {
   it("settles instead of expiring when the payment landed before expiry (not late)", async () => {
     const inv = await invoice(new Date("2026-10-01T18:00:00.000Z")); // payment landed 17:34:34
     paid = true;
-    expect(await expireIfUnpaid(inv.id, ctx)).toEqual({ outcome: "settled", status: "PAID" });
+    expect(await expireIfUnpaid(inv.id, ctx)).toMatchObject({ outcome: "settled", status: "PAID" });
     expect(await db.payment.findFirstOrThrow()).toMatchObject({ late: false });
     expect(await expiredAudits()).toBe(0);
   });
@@ -97,14 +97,14 @@ describe("chain-first expiry", () => {
   it("settles a payment that landed after expiry, flagged late", async () => {
     const inv = await invoice(new Date("2026-10-01T17:30:00.000Z"));
     paid = true;
-    expect(await expireIfUnpaid(inv.id, ctx)).toEqual({ outcome: "settled", status: "PAID" });
+    expect(await expireIfUnpaid(inv.id, ctx)).toMatchObject({ outcome: "settled", status: "PAID" });
     expect(await db.payment.findFirstOrThrow()).toMatchObject({ late: true });
   });
 
   it("expires when the only money found doesn't pay the invoice (recorded as unmatched)", async () => {
     const inv = await invoice(secondsAgo(200), { amount: 2_000_000n }); // 1 USDC arrived for a 2 USDC invoice
     paid = true;
-    expect(await expireIfUnpaid(inv.id, ctx)).toEqual({ outcome: "expired", status: "EXPIRED" });
+    expect(await expireIfUnpaid(inv.id, ctx)).toMatchObject({ outcome: "expired", status: "EXPIRED" });
     expect(await db.unmatchedPayment.findFirstOrThrow()).toMatchObject({ reason: "AMOUNT_MISMATCH", invoiceId: inv.id });
   });
 });
@@ -129,7 +129,7 @@ describe("never expire without a successful chain check", () => {
 describe("other states and concurrency", () => {
   it.each(["CONFIRMING", "EXPIRED", "FAILED"] as const)("doesn't touch a %s invoice (no chain check)", async (status) => {
     const inv = await invoice(secondsAgo(3600), { status });
-    expect(await expireIfUnpaid(inv.id, ctx)).toEqual({ outcome: "not-pending", status });
+    expect(await expireIfUnpaid(inv.id, ctx)).toMatchObject({ outcome: "not-pending", status });
     expect(getSignaturesForReference).not.toHaveBeenCalled();
   });
 

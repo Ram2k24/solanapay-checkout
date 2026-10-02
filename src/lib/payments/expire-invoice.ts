@@ -2,7 +2,7 @@ import "server-only";
 import type { InvoiceStatus } from "@/generated/prisma/client";
 import { db } from "@/lib/db/client";
 import { ApiError } from "@/lib/http/api";
-import { checkInvoicePayment, type Actor } from "./check-payment";
+import { checkInvoicePayment, type Actor, type CheckResult } from "./check-payment";
 import { assertTransition } from "./invoice-state";
 import { EXPIRY_GRACE_SECONDS } from "./policy";
 
@@ -25,15 +25,19 @@ export type ExpiryOutcome =
 
 type Ctx = { actor: Actor; requestId?: string; log: Parameters<typeof checkInvoicePayment>[1]["log"] };
 
-export async function expireIfUnpaid(invoiceId: string, ctx: Ctx): Promise<{ outcome: ExpiryOutcome; status: InvoiceStatus }> {
+// `recorded`: what the chain check recorded on the way (e.g. an unmatched payment).
+export async function expireIfUnpaid(
+  invoiceId: string,
+  ctx: Ctx,
+): Promise<{ outcome: ExpiryOutcome; status: InvoiceStatus; recorded: CheckResult["recorded"] }> {
   const invoice = await db.invoice.findUnique({ where: { id: invoiceId }, select: { merchantId: true, status: true } });
   if (!invoice) throw new ApiError("NotFound");
-  if (invoice.status !== "PENDING") return { outcome: "not-pending", status: invoice.status };
-  if (!(await isDue(invoiceId))) return { outcome: "not-due", status: invoice.status };
+  if (invoice.status !== "PENDING") return { outcome: "not-pending", status: invoice.status, recorded: [] };
+  if (!(await isDue(invoiceId))) return { outcome: "not-due", status: invoice.status, recorded: [] };
 
   // Chain first. Throws on RPC failure: the invoice stays PENDING.
   const check = await checkInvoicePayment({ invoiceId, merchantId: invoice.merchantId }, ctx);
-  if (check.status !== "PENDING") return { outcome: "settled", status: check.status };
+  if (check.status !== "PENDING") return { outcome: "settled", status: check.status, recorded: check.recorded };
 
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM invoices WHERE id = ${invoiceId}::uuid FOR UPDATE`;
@@ -42,7 +46,9 @@ export async function expireIfUnpaid(invoiceId: string, ctx: Ctx): Promise<{ out
       select: { status: true, expiresAt: true, payment: { select: { id: true } } },
     });
     // A concurrent check or expiry may have changed it while we looked at the chain.
-    if (current.status !== "PENDING" || current.payment) return { outcome: "not-pending" as const, status: current.status };
+    if (current.status !== "PENDING" || current.payment) {
+      return { outcome: "not-pending" as const, status: current.status, recorded: check.recorded };
+    }
 
     assertTransition("PENDING", "EXPIRED");
     await tx.invoice.update({ where: { id: invoiceId, status: "PENDING" }, data: { status: "EXPIRED" } });
@@ -58,7 +64,7 @@ export async function expireIfUnpaid(invoiceId: string, ctx: Ctx): Promise<{ out
       },
     });
     ctx.log.info({ invoiceId }, "invoice expired after a chain check found no payment");
-    return { outcome: "expired" as const, status: "EXPIRED" as const };
+    return { outcome: "expired" as const, status: "EXPIRED" as const, recorded: check.recorded };
   });
 }
 
