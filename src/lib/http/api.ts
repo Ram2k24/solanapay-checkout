@@ -32,12 +32,16 @@ export type ApiErrorCode = keyof typeof API_ERRORS;
 export type FieldErrors = Record<string, string>;
 
 export class ApiError extends Error {
+  readonly retryAfterSeconds?: number; // RateLimited: sent as the Retry-After header
+
   constructor(
     readonly code: ApiErrorCode,
     readonly fields?: FieldErrors,
-    options?: ErrorOptions, // { cause }: the underlying error, logged server-side only
+    // cause: the underlying error, logged server-side only
+    options?: ErrorOptions & { retryAfterSeconds?: number },
   ) {
     super(code, options);
+    this.retryAfterSeconds = options?.retryAfterSeconds;
   }
 }
 

@@ -29,7 +29,8 @@ export function route<P extends Record<string, string> = Record<string, never>>(
           { code: error.code, fields: error.fields ? Object.keys(error.fields) : undefined, err: error.cause },
           "request rejected",
         );
-        response = errorResponse(error.code, error.fields);
+        const headers = error.retryAfterSeconds ? { "retry-after": String(error.retryAfterSeconds) } : undefined;
+        response = errorResponse(error.code, error.fields, headers);
       } else if (isDatabaseUnavailable(error)) {
         log.error({ err: error }, "database unavailable");
         response = errorResponse("DatabaseUnavailable");
