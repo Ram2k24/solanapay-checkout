@@ -57,3 +57,12 @@ export function getConfirmedTransaction(signature: string) {
     .getTransaction(toSignature(signature), { encoding: "json", commitment: "confirmed", maxSupportedTransactionVersion: 0 })
     .send(timeout());
 }
+
+// Status of one signature, searching the full history (not just recent slots).
+// null: the cluster doesn't know the signature.
+export async function getSignatureStatus(signature: string) {
+  const { value } = await rpc
+    .getSignatureStatuses([toSignature(signature)], { searchTransactionHistory: true })
+    .send(timeout());
+  return value[0] ?? null;
+}

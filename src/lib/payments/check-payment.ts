@@ -31,7 +31,7 @@ export type CheckResult = {
   recorded: { signature: string; outcome: Outcome }[]; // what this run changed
 };
 
-type Outcome =
+export type Outcome =
   | "payment-confirmed" // new payment, CONFIRMED: invoice CONFIRMING
   | "payment-finalized" // new payment, FINALIZED: invoice PAID
   | "payment-upgraded" // existing payment CONFIRMED -> FINALIZED: invoice PAID
@@ -119,8 +119,7 @@ async function checkSignature(
       });
       if (other) return null;
     }
-    const reason = incoming.references.length > 0 ? "UNKNOWN_REFERENCE" : "NO_REFERENCE";
-    return recordUnmatched(invoice, incoming, commitment, reason, null, ctx);
+    return recordUnmatchedPayment(invoice, incoming, commitment, ctx);
   }
 
   return settleOrRecord(invoice, incoming, match, commitment, ctx);
@@ -139,13 +138,13 @@ async function settleOrRecord(
     if (await isRecorded(tx, incoming.signature)) return null; // a concurrent check won
 
     if (match.kind === "amount-mismatch") {
-      return insertUnmatched(tx, invoice, incoming, commitment, "AMOUNT_MISMATCH", invoice.id, ctx);
+      return insertUnmatched(tx, invoice, incoming, commitment, "AMOUNT_MISMATCH", invoice, ctx);
     }
     if (current.payment) {
-      return insertUnmatched(tx, invoice, incoming, commitment, "DUPLICATE_PAYMENT", invoice.id, ctx);
+      return insertUnmatched(tx, invoice, incoming, commitment, "DUPLICATE_PAYMENT", invoice, ctx);
     }
     if (current.status !== "PENDING") {
-      return insertUnmatched(tx, invoice, incoming, commitment, "INVOICE_NOT_PAYABLE", invoice.id, ctx);
+      return insertUnmatched(tx, invoice, incoming, commitment, "INVOICE_NOT_PAYABLE", invoice, ctx);
     }
 
     const now = new Date();
@@ -202,41 +201,47 @@ async function upgradeToFinalized(
   });
 }
 
-function recordUnmatched(
-  invoice: StoredInvoice,
+// Where an incoming payment landed: the merchant, network, wallet and mint it credited.
+export type Ledger = Pick<Invoice, "merchantId" | "network" | "recipientWallet" | "tokenMint">;
+
+// Records money that isn't tied to any invoice of the merchant: NO_REFERENCE if the
+// transfer carries no reference, UNKNOWN_REFERENCE otherwise. Returns null if the
+// transaction is already recorded (here or as a payment).
+export function recordUnmatchedPayment(
+  ledger: Ledger,
   incoming: IncomingTransfer,
   commitment: Commitment,
-  reason: UnmatchedReason,
-  invoiceId: string | null,
   ctx: { actor: Actor; requestId?: string; log: Log },
 ): Promise<Outcome | null> {
+  const reason = incoming.references.length > 0 ? "UNKNOWN_REFERENCE" : "NO_REFERENCE";
   return writeOnce(async (tx) => {
     if (await isRecorded(tx, incoming.signature)) return null;
-    return insertUnmatched(tx, invoice, incoming, commitment, reason, invoiceId, ctx);
+    return insertUnmatched(tx, ledger, incoming, commitment, reason, null, ctx);
   });
 }
 
 async function insertUnmatched(
   tx: Prisma.TransactionClient,
-  invoice: StoredInvoice,
+  ledger: Ledger,
   incoming: IncomingTransfer,
   commitment: Commitment,
   reason: UnmatchedReason,
-  invoiceId: string | null,
+  invoice: Pick<Invoice, "id" | "reference"> | null, // the invoice the payment was meant for, if known
   ctx: { actor: Actor; requestId?: string; log: Log },
 ): Promise<Outcome> {
+  const invoiceId = invoice?.id ?? null;
   const entry = await tx.unmatchedPayment.create({
     data: {
-      merchantId: invoice.merchantId,
+      merchantId: ledger.merchantId,
       invoiceId,
       reason,
       signature: incoming.signature,
-      network: invoice.network,
-      reference: reason === "NO_REFERENCE" ? null : invoiceId ? invoice.reference : (incoming.references[0] ?? null),
+      network: ledger.network,
+      reference: reason === "NO_REFERENCE" ? null : (invoice?.reference ?? incoming.references[0] ?? null),
       senderWallet: incoming.senderWallet,
-      recipientWallet: invoice.recipientWallet,
+      recipientWallet: ledger.recipientWallet,
       recipientTokenAccount: incoming.recipientTokenAccount,
-      tokenMint: invoice.tokenMint,
+      tokenMint: ledger.tokenMint,
       amount: incoming.amount,
       slot: incoming.slot,
       blockTime: incoming.blockTime,
@@ -313,7 +318,7 @@ function isAlreadyRecorded(error: unknown): boolean {
   return error instanceof Error && /is already recorded/.test(error.message);
 }
 
-async function rpcCall<T>(fn: () => Promise<T>): Promise<T> {
+export async function rpcCall<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (error) {
