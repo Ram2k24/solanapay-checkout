@@ -50,7 +50,7 @@ describe("public checkout", () => {
     const checkout = await getPublicCheckout(created.id);
 
     expect(Object.keys(checkout!).sort()).toEqual(
-      ["amountDisplay", "currency", "description", "expiresAt", "invoiceNumber", "merchantName", "network", "orderId", "payment", "recipientShort", "status"].sort(),
+      ["amountDisplay", "confirmation", "currency", "description", "expiresAt", "invoiceNumber", "merchantName", "network", "orderId", "payment", "recipientShort", "status"].sort(),
     );
     const serialized = JSON.stringify(checkout);
     expect(serialized).not.toContain("internal-customer-42"); // customer reference stays internal
@@ -94,6 +94,37 @@ describe("public checkout", () => {
     const created = await invoiceFor(cookie, { amount: "5" });
     await db.invoice.update({ where: { id: created.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
     expect((await getPublicCheckout(created.id, new Date(), HTTPS_APP))?.payment).toBeNull();
+  });
+
+  it("shows the verified payment (public chain data only) once the invoice is paid", async () => {
+    const { cookie } = await newMerchant();
+    const created = await invoiceFor(cookie, { amount: "5" });
+    const row = await db.invoice.findUniqueOrThrow({ where: { id: created.id } });
+    await db.$transaction([
+      db.payment.create({
+        data: {
+          invoiceId: row.id, signature: "VerifiedSignature1", network: "DEVNET", reference: row.reference,
+          senderWallet: "PayerWalletThatMustNotBeShown1111111111111", recipientWallet: row.recipientWallet,
+          recipientTokenAccount: "TokenAccount", tokenMint: row.tokenMint, amount: row.amount, slot: 1n,
+          blockTime: new Date("2026-10-01T17:34:34.000Z"), commitment: "FINALIZED", verifiedAt: new Date(), finalizedAt: new Date(),
+        },
+      }),
+      db.invoice.update({ where: { id: row.id }, data: { status: "PAID", paidAt: new Date() } }),
+    ]);
+
+    const checkout = await getPublicCheckout(created.id);
+    expect(checkout).toMatchObject({
+      status: "PAID",
+      payment: null,
+      confirmation: {
+        signature: "VerifiedSignature1",
+        amountDisplay: "5.00",
+        blockTime: "2026-10-01T17:34:34.000Z",
+        finalized: true,
+        explorerUrl: "https://explorer.solana.com/tx/VerifiedSignature1?cluster=devnet",
+      },
+    });
+    expect(JSON.stringify(checkout)).not.toContain("PayerWalletThatMustNotBeShown");
   });
 
   it("returns nothing for unknown or malformed IDs", async () => {

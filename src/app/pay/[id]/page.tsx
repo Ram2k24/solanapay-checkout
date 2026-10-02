@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/checkout/copy-button";
 import { PaymentQr } from "@/components/checkout/payment-qr";
 import { ExpiryCountdown } from "@/components/merchant/expiry-countdown";
+import { LocalTime } from "@/components/merchant/local-time";
 import { StatusBadge } from "@/components/merchant/status-badge";
 import { NetworkBanner } from "@/components/network-banner";
 import { ApiError } from "@/lib/http/api";
@@ -100,6 +101,26 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
                   </div>
                 </details>
               )}
+            </div>
+          ) : checkout.confirmation ? (
+            <div className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-900" role="status">
+              <p className="font-medium">
+                {checkout.confirmation.finalized ? "Payment confirmed" : "Payment received, waiting for final confirmation on Solana…"}
+              </p>
+              <dl className="mt-3 space-y-2">
+                <div><dt className="text-emerald-800">Amount</dt><dd>{checkout.confirmation.amountDisplay} {checkout.currency}</dd></div>
+                <div><dt className="text-emerald-800">Network</dt><dd className="capitalize">Solana {checkout.network.toLowerCase()}</dd></div>
+                {checkout.confirmation.blockTime && (
+                  <div><dt className="text-emerald-800">Time</dt><dd><LocalTime iso={checkout.confirmation.blockTime} /></dd></div>
+                )}
+                <div>
+                  <dt className="text-emerald-800">Transaction</dt>
+                  <dd className="break-all font-mono text-xs">{checkout.confirmation.signature}</dd>
+                </div>
+              </dl>
+              <a href={checkout.confirmation.explorerUrl} target="_blank" rel="noreferrer" className="mt-3 inline-block underline">
+                View on Solana Explorer
+              </a>
             </div>
           ) : (
             <p className="mt-6 rounded-lg bg-slate-50 p-4 text-sm text-slate-700" role="status">
