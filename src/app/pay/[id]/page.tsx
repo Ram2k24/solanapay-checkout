@@ -110,7 +110,7 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
                   </div>
                 </details>
               )}
-              <WalletPay amountDisplay={checkout.amountDisplay} currency={checkout.currency} merchantName={checkout.merchantName} />
+              <WalletPay invoiceId={id} amountDisplay={checkout.amountDisplay} currency={checkout.currency} merchantName={checkout.merchantName} />
             </div>
           ) : checkout.confirmation ? (
             <div className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-900" role="status">
