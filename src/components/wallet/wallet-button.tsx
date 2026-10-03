@@ -180,7 +180,8 @@ export function WalletButton() {
 
 type Wallets = ReturnType<typeof useWallets>;
 
-function WalletList({
+// Also used by the checkout page's browser-wallet payment (Phase 8).
+export function WalletList({
   wallets,
   connecting,
   error,

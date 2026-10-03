@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/checkout/copy-button";
 import { PaymentQr } from "@/components/checkout/payment-qr";
 import { StatusWatcher } from "@/components/checkout/status-watcher";
+import { WalletPay } from "@/components/checkout/wallet-pay";
 import { ExpiryCountdown } from "@/components/merchant/expiry-countdown";
 import { LocalTime } from "@/components/merchant/local-time";
 import { StatusBadge } from "@/components/merchant/status-badge";
@@ -109,6 +110,7 @@ export default async function PayPage({ params }: { params: Promise<{ id: string
                   </div>
                 </details>
               )}
+              <WalletPay amountDisplay={checkout.amountDisplay} currency={checkout.currency} merchantName={checkout.merchantName} />
             </div>
           ) : checkout.confirmation ? (
             <div className="mt-6 rounded-lg bg-emerald-50 p-4 text-sm text-emerald-900" role="status">
