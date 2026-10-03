@@ -1,16 +1,11 @@
-import {
-  getBase64Encoder,
-  getCompiledTransactionMessageDecoder,
-  getTransactionDecoder,
-  type Transaction,
-} from "@solana/kit";
+import { getBase64Encoder, getTransactionDecoder, type Transaction } from "@solana/kit";
 
 // Browser side of the in-browser payment (Phase 8.2): asks OUR server for the unsigned
 // payment transaction for the connected account. The server builds it from the stored
 // invoice (amount, mint, decimals, recipient, reference) through the same Transaction
 // Request endpoint phone wallets use; the browser sends only the account address and
 // never edits the transaction. It only checks, before any wallet sees it, that the
-// connected account is the fee payer and the only signer.
+// connected account is the only signer (and so the fee payer).
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -85,18 +80,18 @@ export async function requestPaymentTransaction(
 }
 
 // Decodes the server's base64 wire transaction and checks it is for `account` to sign
-// alone: fee payer = account, exactly one signature slot (account's), still unsigned.
+// alone: exactly one signature slot, account's, still empty. The decoder lists the
+// message's signer accounts in order and the first signer is always the fee payer, so
+// this also proves the customer pays the fee.
 export function decodePaymentTransaction(base64: string, account: string): Transaction {
   let transaction: Transaction;
-  let feePayer: string | undefined;
   try {
     transaction = getTransactionDecoder().decode(getBase64Encoder().encode(base64));
-    feePayer = getCompiledTransactionMessageDecoder().decode(transaction.messageBytes).staticAccounts[0];
   } catch (error) {
     throw new PaymentRequestError("invalid", undefined, { cause: error });
   }
   const signers = Object.entries(transaction.signatures);
   const signedOnlyByAccount = signers.length === 1 && signers[0]![0] === account && signers[0]![1] === null;
-  if (feePayer !== account || !signedOnlyByAccount) throw new PaymentRequestError("invalid");
+  if (!signedOnlyByAccount) throw new PaymentRequestError("invalid");
   return transaction;
 }
