@@ -1,22 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import type { InvoiceStatus } from "@/generated/prisma/enums";
-import type { PollerState } from "@/lib/payments/status-poller";
 import { useInvoiceStatus } from "@/lib/react/use-invoice-status";
-
-function describe(status: InvoiceStatus, polling: PollerState): string {
-  if (polling === "stopped") return "Automatic updates have stopped. Reload the page to check again.";
-  if (polling === "paused") return "Updates paused while this tab is in the background.";
-  if (polling === "backoff") return "Having trouble reaching the server; retrying shortly…";
-  if (status === "CONFIRMING") return "Checking for final confirmation automatically…";
-  if (status === "EXPIRED") return "Checking once more for a payment made just before expiry…";
-  return "Waiting for your payment. This page updates automatically.";
-}
+import { describeWatch, STALE_PAGE_RELOAD_MS } from "./status-watch-text";
 
 // Keeps the public checkout page current while the customer pays. When the invoice's
 // status changes, it asks the server to re-render the page (router.refresh()): the
 // payment details shown always come from the server, never from this component.
+//
+// `initialStatus` is the status the server-rendered page shows; a refresh that applies
+// updates it (or removes this component). If the poller's status still differs after
+// STALE_PAGE_RELOAD_MS, the refresh didn't apply (seen once on devnet in Phase 8.5,
+// without any error), so the page is reloaded once. Both sides compute the status the
+// same way from the same row, so a fresh page agrees with the poller and can't loop.
 export function StatusWatcher({ invoiceId, initialStatus, expiresAt }: { invoiceId: string; initialStatus: InvoiceStatus; expiresAt: string }) {
   const router = useRouter();
   const { status, polling } = useInvoiceStatus(invoiceId, {
@@ -25,9 +23,15 @@ export function StatusWatcher({ invoiceId, initialStatus, expiresAt }: { invoice
     onChange: () => router.refresh(),
   });
 
+  useEffect(() => {
+    if (status === initialStatus) return;
+    const timer = setTimeout(() => window.location.reload(), STALE_PAGE_RELOAD_MS);
+    return () => clearTimeout(timer);
+  }, [status, initialStatus]);
+
   return (
     <p role="status" aria-live="polite" className="mt-4 text-center text-xs text-slate-500">
-      {describe(status, polling)}
+      {describeWatch(status, polling, initialStatus)}
     </p>
   );
 }
