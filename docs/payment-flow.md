@@ -15,8 +15,9 @@ phase is implemented; nothing below "planned" exists yet.
                                                                   transfer + reference  (Phase 8: planned in-browser)
                                   find tx by reference,
                                   verify against stored invoice
-                                  CONFIRMING → PAID              ◀── confirmed / finalized (Phase 9: implemented;
-                                                                     automatic detection: Phase 10)
+                                  CONFIRMING → PAID              ◀── confirmed / finalized (Phase 9: implemented)
+                                  found automatically; overdue
+                                  → EXPIRED only after a chain check (Phase 10: implemented)
 
 ## 1. Invoice creation (Phase 6: implemented)
 
@@ -66,9 +67,10 @@ Enforcement:
        └──▶ FAILED
 
 All transitions go through `assertTransition()` (`src/lib/payments/invoice-state.ts`).
-Until the expiry job exists (Phase 10), reads compute an **effective status**: a
-PENDING invoice past `expires_at` is shown and filtered as EXPIRED. A CONFIRMING
-invoice is never shown as expired: a payment seen before expiry completes.
+Reads compute an **effective status**: a PENDING invoice past `expires_at` is shown and
+filtered as EXPIRED right away, while the stored row stays PENDING for a 180 s grace
+period and only becomes EXPIRED after a chain check finds no payment (§7). A
+CONFIRMING invoice is never shown as expired: a payment seen before expiry completes.
 
 ## 4. Solana Pay link and QR (Phase 7: implemented)
 
@@ -261,7 +263,7 @@ deliberately not offered (manual matching of money is risky; decision 2026-10-02
   transaction against the merchant's payout wallet and Circle's USDC. Not paying the
   merchant: rejected, nothing recorded. Carrying one of the merchant's references: that
   invoice is checked. Otherwise: unmatched.
-- Automatic detection (polling, expiry) is Phase 10.
+- Automatic detection and expiry: §7 (Phase 10).
 
 ### Verified on devnet (2026-10-02)
 
@@ -272,4 +274,109 @@ deliberately not offered (manual matching of money is risky; decision 2026-10-02
 - The customer page shows "Payment confirmed" with signature and Explorer link, without
   the payer's wallet.
 
-## 7. Detection and expiry (Phase 10: planned)
+## 7. Automatic detection and expiry (Phase 10: implemented)
+
+Nobody has to click anything: payments are detected and overdue invoices expire on
+their own. Phase 10 only decides **when** to look at the chain; every look goes
+through the one verification path, `checkInvoicePayment()` (§6). The only new state
+change is PENDING → EXPIRED.
+
+    customer's checkout page ── GET /api/pay/[id]/status ──┐
+                                  (throttled chain check)   ├──▶ checkInvoicePayment() ──▶ verifier ──▶ payments / unmatched
+    reconciler (every 30 s) ────────────────────────────────┤
+                         └── overdue: chain check first ────┴──▶ only then PENDING → EXPIRED
+
+### Two triggers
+
+| Trigger | Purpose |
+|---|---|
+| **Status API** `GET /api/pay/[id]/status`, polled by the open checkout page | Fast feedback while the customer watches: a chain check at most once per 5 s per invoice, shared by all viewers |
+| **Reconciler** `POST /api/internal/reconcile` (`CRON_SECRET`), every 30 s | Customers who left the page; CONFIRMING → PAID; expiry; the late-money watch |
+
+### Status API (public)
+
+- No sign-in, no cookies read, same-origin, `no-store`. Response:
+  `{ status, expiresAt, confirmation }` (status is the effective one; `confirmation` =
+  signature, amount, block time, finalized, Explorer link; never the payer's wallet).
+- 60 requests/min per IP, then **429 with a calculated `Retry-After`**.
+- A chain check runs only if the stored status is PENDING/CONFIRMING and
+  `now < expires_at + 180 s`, and the per-invoice throttle, the status API's share (20 per
+  10 s) and the shared RPC budget (below) all allow it.
+- **Fail-soft:** if the check fails (RPC down, wrong cluster) the API logs it and answers
+  200 from the database. It never produces a status of its own.
+
+### Checkout page polling
+
+`src/lib/payments/status-poller.ts` (framework-free, fake-timer tested) +
+`useInvoiceStatus` hook + `<StatusWatcher>`:
+- every 3 s while the invoice may change; **one request at a time** (the next poll is
+  scheduled after the previous one completes); 10 s request timeout;
+- paused while the tab is hidden, polls at once when it's visible again;
+- errors back off 3 → 6 → 12 → 24 → 30 s; a 429 waits the server's `Retry-After`;
+- stops at PAID / FAILED, on 404, and 5 minutes after expiry (an EXPIRED status alone
+  doesn't stop it before then: a last-second payment may still be found);
+- on a status change it calls `router.refresh()`: the page is re-rendered **by the
+  server**. The browser's copy of the status is never evidence of anything.
+
+### Chain-first expiry (`expireIfUnpaid`)
+
+1. Only a stored PENDING invoice with `expires_at <= now - 180 s` (database clock).
+   The grace period covers a payment submitted just before expiry: up to ~90 s to land
+   (blockhash lifetime) plus ~15 s to finalize.
+2. `checkInvoicePayment()` first. A payment found → CONFIRMING/PAID (`late` if it landed
+   after expiry). **If the chain check fails, the invoice stays PENDING**: it is never
+   expired without a successful check.
+3. Under the row lock, still PENDING with no payment → PENDING → EXPIRED, audited
+   (`invoice.expired`, actor `reconciler`).
+
+**Late-money watch:** EXPIRED invoices are checked every 10 minutes for 24 hours. Money
+found then is recorded as unmatched `INVOICE_NOT_PAYABLE` (§6): visible, never lost,
+never auto-paid.
+
+### Reconciler
+
+`src/lib/payments/reconciler.ts`, scheduled per invoice in `invoice_checks` (one row
+per invoice, created by a database trigger):
+
+| Invoice | Next check |
+|---|---|
+| PENDING, first 10 minutes | every 30 s |
+| PENDING, older | every 2 min, never later than `expires_at + 180 s` (the expiry decision) |
+| CONFIRMING | every 15 s (warning only if > 10 min; never failed automatically) |
+| EXPIRED | every 10 min until 24 h after expiry, then never |
+| PAID / FAILED | never |
+| after an RPC error | 30 s, 1, 2, 4, 8, then 10 min |
+
+Each run claims up to 25 due rows in one statement (`FOR UPDATE SKIP LOCKED`, 60 s
+lease in `lease_until`), so concurrent runs never take the same invoice and a crashed
+run's claims simply expire. Up to 3 invoices in parallel. Wrong cluster → the run
+stops and releases its claims. Correctness never depends on the lease: Phase 9's row
+locks and database rules guarantee each transaction is recorded once.
+
+### One RPC budget
+
+The public RPC allows 40 `getSignaturesForAddress` calls per 10 s per IP. Every check
+starts with one, so the status API and the reconciler draw from one **database-backed
+sliding-window budget** of 35 per 10 s (`rpc:getSignaturesForAddress`); the status API
+is additionally capped at 20 per 10 s. When the budget is used up, the status API
+answers from the database and the reconciler defers the rest of its batch.
+
+### Running it
+
+- Development: `npm run reconciler` (with the dev server running) calls the endpoint
+  every 30 s; runs never overlap.
+- Production: the host's scheduler calls `POST /api/internal/reconcile` with
+  `Authorization: Bearer <CRON_SECRET>` (Phase 15). Never timers inside Next.js.
+
+### Verified on devnet (2026-10-02/03)
+
+- **Expiry:** the reconciler checked 17 overdue PENDING invoices on-chain and expired
+  them. The public devnet RPC answered 4 of the lookups with HTTP 429; those invoices
+  stayed PENDING, were retried 30 s later and then expired. 17 `invoice.expired` entries.
+- **Payment, no clicks:** INV-2026-00019 paid from Phantom (transaction request through a
+  temporary tunnel). The reconciler recorded it 5.3 s after it landed
+  (`7b4K42seU6…`, finalized, not late), and the open checkout page switched to
+  "Payment confirmed" by itself.
+- An earlier scan of the same invoice was approved but never landed (seen twice now);
+  the invoice correctly stayed PENDING.
+- Production build: polling every ~3 s with no overlap, no console messages.

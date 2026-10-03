@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–7b and 9 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, on-chain payment verification). Phase 8 (in-browser payment) is next.
+**Status:** early development. Phases 1–7b, 9 and 10 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, on-chain payment verification, automatic detection and expiry). Phase 8 (in-browser payment) is next.
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -41,8 +41,12 @@ Implemented so far:
   never auto-paid; merchants look up transactions by signature and resolve entries
 - Payment details on the invoice page, "Payment confirmed" on the customer page, USDC
   received on the dashboard
-- Not yet: automatic detection (polling) and expiry updates (Phase 10); until then the
-  merchant clicks Check for payment
+- Automatic detection: the checkout page polls a public status API and updates itself
+  (Pending → Confirming → "Payment confirmed"); a background reconciler finds payments
+  for customers who left the page
+- Automatic expiry, chain first: overdue invoices become Expired only after a successful
+  on-chain check finds no payment; money arriving later is recorded for review
+- Database-backed rate limits with `Retry-After`, and one shared RPC budget
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -78,6 +82,7 @@ Prerequisites: Node.js 24 LTS (`nvm use`), Docker with Compose plugin.
 | `npm run db:test:setup` | Create and migrate the test database |
 | `npm run db:seed -- --wallet <addr>` | Development-only demo merchant and invoices (idempotent) |
 | `npm run smoke` | Smoke-test the production build (starts and stops its own server) |
+| `npm run reconciler` | Development: run payment detection and expiry every 30 s (dev server must be running) |
 
 Health check: `curl http://localhost:3000/api/health`
 
@@ -92,7 +97,7 @@ Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/dat
 
     npm run db:deploy     # apply migrations
     npm run db:status     # check migration state
-    npm run db:check      # run the 43 database constraint checks (rolled back)
+    npm run db:check      # run the 46 database constraint checks (rolled back)
 
 ## Devnet Setup
 See [docs/devnet-testing.md](docs/devnet-testing.md): wallet setup, devnet SOL/USDC faucets,
@@ -102,7 +107,7 @@ and the manual test checklist.
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 294 tests: auth, merchants, invoices, Solana Pay, transaction requests, payment verification (real devnet fixtures, concurrency)
+    npm test                # 396 tests: auth, invoices, Solana Pay, transaction requests, verification (real devnet fixtures), detection, expiry, concurrency
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.

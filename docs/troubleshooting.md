@@ -138,8 +138,33 @@ Circle's devnet USDC mint has no name/logo metadata in Phantom, so it appears as
 "Unknown Token 4zMMC…DncDU". On mainnet it shows as USDC.
 
 **Paid by scanning the QR, but the invoice stays Pending**
-Expected until payment detection exists (Phases 9–10). Also note that Phantom mobile
-was observed to omit the Solana Pay reference; see payment-flow.md.
+Check that the reconciler is running (`npm run reconciler`) or the checkout page is open.
+If the payment used the basic transfer link, Phantom mobile may have dropped the
+reference: look it up under Unmatched payments. If Phantom showed the request but
+nothing reached the chain, approve faster and scan again (see payment-flow.md §4b).
 
 **"Open in wallet" does nothing on a computer**
 Browser extensions generally don't handle `solana:` links; the button is for phones.
+
+## Detection and expiry (Phase 10)
+
+**The reconciler returns HTTP 500, then `claimed=0`, alternately; the server log shows
+`Cannot read properties of undefined (reading 'update')`**
+The dev server still has the Prisma client from before `npx prisma generate` (in
+development the client is kept on `globalThis` across hot reloads, so new tables stay
+invisible). Restart `npm run dev` after every `prisma generate`. Claimed invoices are
+released when their 60 s lease expires; nothing is half-written.
+
+**`rpcErrors` > 0, log says `HTTP error (429): Too Many Requests`**
+The public devnet RPC rate-limits bursts. Affected invoices stay as they are and are
+retried after the backoff (30 s, 1 min, …). For production use a dedicated RPC provider.
+
+**The reconciler loop prints `request failed`**
+The dev server isn't running (the loop calls `http://localhost:3000`), or
+`RECONCILER_URL` points elsewhere.
+
+**`HTTP 401 InvalidCredentials` from the reconciler loop**
+`CRON_SECRET` in `.env` differs from the one the server started with: restart the server.
+
+**The checkout page says "Updates paused while this tab is in the background"**
+Expected: polling pauses in hidden tabs and resumes when you come back.

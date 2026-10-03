@@ -117,6 +117,30 @@ Sessions last 8 hours (absolute).
 - **Audit:** `payment.recorded`, `payment.finalized`, `invoice.status_changed`,
   `payment.unmatched`, `unmatched.resolved`, with actor and request ID.
 
+## Automatic detection and expiry (Phase 10)
+
+- **Status API** (`GET /api/pay/[id]/status`): public, reads no cookies, same-origin
+  only, `no-store`. Exact response keys `status, expiresAt, confirmation`; never the
+  merchant's data, the customer reference, the reference key or the payer's wallet
+  (tested). 60/min per IP → 429 with `Retry-After`. A request can only make the server
+  look at the chain sooner; the result comes from the chain and the stored invoice.
+  Fail-soft: an RPC failure is logged and the stored status returned.
+- **Rate limits are database-backed** (`rate_limits`), shared by every instance. Budgets
+  that must not be exceeded use a sliding window, checked and incremented under a row
+  lock; `Retry-After` is the calculated earliest retry. Every 429 now carries it.
+- **One RPC budget** (35 `getSignaturesForAddress` per 10 s) for the status API and the
+  reconciler, so customer traffic can't push us over the provider's limit or starve the
+  reconciler (status API ≤ 20 per 10 s).
+- **Reconciler endpoint** (`POST /api/internal/reconcile`): `Authorization: Bearer
+  <CRON_SECRET>`, compared as SHA-256 digests with `timingSafeEqual`; anything else →
+  401 `InvalidCredentials` and nothing runs. No session, no Origin check (not a browser
+  endpoint). The development loop refuses to run with `APP_ENV=production` and never
+  prints the secret.
+- **Never expire without a successful chain check**; the expiry is a locked,
+  re-checked, audited transition. Payments that land later are recorded as unmatched.
+- **The browser is never the authority:** the checkout page only asks the server to
+  re-render; the status it polls is display data.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -124,6 +148,7 @@ from `src/lib/http/api.ts` (`InvalidRequest`, `Unauthenticated`, `InvalidSignatu
 `ChallengeExpired`, `ForbiddenOrigin`, `RateLimited`, `DatabaseUnavailable`,
 `InvalidAccount`, `SelfPaymentNotAllowed`, `InvoiceNotPayable`, `RpcUnavailable`,
 `InvalidRecipient`, `TransactionFailed`, `TransactionNotFound`, `PaymentAlreadyProcessed`,
+`InvalidCredentials`,
 `InternalError`). Every response carries `x-request-id` and `cache-control: no-store`.
 
 ## Database-level protections
@@ -141,11 +166,13 @@ state-consistency CHECKs, and an append-only audit log.
   (an oversized header causes an error page): planned, Phase 13.
 - **TRUNCATE** on `audit_logs` is not blocked by the trigger. Fix: run the app with
   a least-privilege database role without TRUNCATE (planned, Phase 13).
-- **Cleanup** of expired nonces, sessions and rate-limit rows (planned, Phase 10 scheduler).
+- **Cleanup** of expired nonces, sessions and rate-limit rows: not done in Phase 10
+  (the reconciler endpoint is the natural place). Planned, Phase 13. The `rate_limits`
+  table now also holds the per-invoice and budget windows, so it grows faster.
 - **Security headers** (CSP, HSTS, …) (planned, Phase 13).
 - **Public checkout rate limit returns HTTP 200:** after 60 views/min per IP the
   page shows "Too many requests", but Next.js pages can't set a 429 status. The
-  limit is enforced; the payment-status API (Phase 10) returns a proper 429.
+  limit is enforced; the payment-status API returns a proper 429 with `Retry-After`.
 - **Wallets may ignore Solana Pay `reference`** in transfer links (observed with
   Phantom mobile's QR scanner): Transaction Requests are now the primary path over
   HTTPS (Phase 7b, verified with Phantom Android); payments without a reference go to
@@ -153,3 +180,6 @@ state-consistency CHECKs, and an append-only audit log.
 - **Payout wallet program check:** the denylist covers well-known programs and USDC
   mints; checking via RPC that no program is deployed at the address is planned
   (Phase 13).
+- **Public RPC endpoints rate-limit bursts:** on devnet the public endpoint returned
+  HTTP 429 to a burst our own budget allowed (absorbed by the backoff). Production must
+  use a dedicated RPC provider (Phase 15).

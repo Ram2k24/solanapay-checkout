@@ -15,6 +15,7 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
 | Network | Devnet only; network set via config | Mainnet later without code changes |
 | Money | Integer base units (`BIGINT`, TS `bigint`); USDC = 6 decimals | No floating-point rounding |
 | Auth | Sign-In With Solana: nonce, wallet signature, httpOnly session cookie | Wallet connection alone is not authentication |
+| Background work | A reconciler endpoint (`POST /api/internal/reconcile`, `CRON_SECRET`) called by an external scheduler; state in `invoice_checks` with leases | No timers inside Next.js: they break on serverless hosts, multiply across instances and duplicate on dev hot reload |
 
 ## Invoice state machine
 

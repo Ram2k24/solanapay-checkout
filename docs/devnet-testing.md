@@ -61,7 +61,7 @@ Notes:
 | 5 | Order ID left blank | Automatic `ORD-YYYY-00001` |
 | 6 | Order ID `ORD-2026-00099` | "reserved for automatic order IDs" |
 | 7 | Double-click Create | Exactly one invoice |
-| 8 | Wait past a short expiry | Shown under **Expired** (row still `PENDING` until Phase 10) |
+| 8 | Wait past a short expiry | Shown under **Expired** at once; the row becomes `EXPIRED` after the reconciler's chain check (Phase 10) |
 | 9 | `npm run db:seed -- --wallet <addr>` twice | 4 demo invoices, then `exists` ×4 |
 
 **Verified 2026-09-30** with Phantom (Chrome): all checks passed; seed idempotent;
@@ -155,6 +155,24 @@ The earlier prototype (throwaway spike) result is in payment-flow.md §4b.
 **Verified 2026-10-02** (live devnet RPC): INV-2026-00017 → Paid (`39m866og…`, not late);
 `5txudqhx…` → No reference → resolved; customer page and dashboard as expected.
 
-## 8. In-browser payment
+## 8. Automatic detection and expiry (Phase 10)
+
+Run the reconciler next to the dev server: `npm run reconciler` (another tab). Each
+line is one run: `claimed`, `checked`, `confirming`, `paid`, `expired`, `unmatched`,
+`deferred` (RPC budget used up), `rpcErrors`.
+
+| # | Action | Expected |
+|---|---|---|
+| 1 | Leave an invoice past `expires_at + 3 min` with the reconciler running | It becomes EXPIRED after one chain check; audit `invoice.expired` |
+| 2 | Open a pending checkout page, DevTools → Network → filter `status` | A request every ~3 s, never two at once; none while the tab is hidden; one at once when it's visible again |
+| 3 | Pay it from the phone (transaction request, §6) and don't touch the laptop | The page changes to "Payment confirmed" by itself (status poll or reconciler, whichever looks first) |
+| 4 | Stop the RPC (e.g. wrong `SOLANA_RPC_URL`), wait past expiry | `rpcErrors` grows, the invoice stays PENDING; fixed URL → expired on the next run |
+
+**Verified 2026-10-02/03** (live devnet): 17 overdue invoices expired (4 retried after
+public-RPC HTTP 429s); INV-2026-00019 paid from the phone and recorded by the reconciler
+5.3 s after landing, page updated with no clicks; production build polls every ~3 s
+with a clean console. See payment-flow.md §7.
+
+## 9. In-browser payment
 
 Phase 8 adds its devnet test steps here.

@@ -13,6 +13,7 @@ erDiagram
     invoices ||--o| payments : "settled by"
     merchants ||--o{ unmatched_payments : "suspense (review)"
     invoices |o--o{ unmatched_payments : "duplicate / mismatch for"
+    invoices ||--|| invoice_checks : "scheduled by"
     users ||--o{ sessions : "signed in as"
     audit_logs }o..o{ invoices : "references (by entity_type/entity_id)"
 ```
@@ -25,6 +26,7 @@ erDiagram
 | `invoices` | Payment requests | `reference` UNIQUE; UNIQUE `(merchant_id, invoice_number)`; `amount > 0`; `paid_at` set iff `PAID` |
 | `payments` | Verified on-chain settlements | `signature` UNIQUE (replay protection); `invoice_id` UNIQUE; `amount > 0`; `finalized_at` set iff `FINALIZED`; evidence immutable, no DELETE (trigger; only CONFIRMED → FINALIZED may change) |
 | `unmatched_payments` | Suspense: real incoming USDC that can't settle an invoice automatically (Phase 9) | `signature` UNIQUE; `amount > 0`; `reason` ↔ `invoice_id` / `reference` consistency; RESOLVED requires note + resolver + time, and is final; invoice must belong to the same merchant; evidence immutable, no DELETE (triggers) |
+| `invoice_checks` | When the reconciler next looks at an invoice (Phase 10) | PK `invoice_id` (one per invoice, created by trigger); `attempts >= 0`; cascade with invoice |
 | `audit_logs` | Security/money events | Append-only (UPDATE/DELETE blocked by trigger) |
 | `auth_nonces` | One-time sign-in challenges (Phase 4) | `nonce` UNIQUE; single use via `used_at`; 5-minute expiry |
 | `sessions` | Server-side sessions (Phase 4) | `token_hash` UNIQUE (HMAC of the cookie token); `revoked_at`; cascade with user |
@@ -74,6 +76,15 @@ erDiagram
   Only the finality upgrade (CONFIRMED → FINALIZED) and resolving an unmatched entry
   (once, with a note) are allowed.
 
+## Detection scheduling (Phase 10)
+
+`invoice_checks`: one row per invoice, inserted by an `AFTER INSERT` trigger on
+`invoices` in the same transaction (so no creation path can leave an invoice unwatched;
+the migration backfilled existing invoices). Columns: `next_check_at` (null = no
+further checks), `last_checked_at`, `attempts` (consecutive RPC failures, ≥ 0),
+`last_error`, `lease_until` (null = not claimed; a reconciler run's claim). See
+payment-flow.md §7 for the cadence.
+
 ## Invoice state machine (stored in `invoices.status`)
 
     DRAFT ──▶ PENDING ──▶ CONFIRMING ──▶ PAID
@@ -102,7 +113,7 @@ there is no drift between schema and database.
 | `npm run db:migrate` | Development: create and apply a migration (`prisma migrate dev`) |
 | `npm run db:deploy` | Production/CI: apply pending migrations only (`prisma migrate deploy`) |
 | `npm run db:status` | Show applied/pending migrations |
-| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 43 checks, rolled back |
+| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 46 checks, rolled back |
 | `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` |
 | `npx prisma studio` | Browse data in a local web UI |
 
