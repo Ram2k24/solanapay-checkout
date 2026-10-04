@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { query } from "./db";
 import { installTestWallet, TEST_WALLET_NAME, type TestWallet } from "./test-wallet";
 
 // Shared browser steps for the merchant side, done through the real UI.
@@ -35,4 +36,19 @@ export function tile(page: Page, label: string) {
     .filter({ has: page.locator("dt").getByText(label, { exact: true }) })
     .locator("dd")
     .first();
+}
+
+export type StoredInvoice = { id: string; invoice_number: string; amount: string; status: string; recipient_wallet: string; token_mint: string; reference: string };
+
+// Creates an invoice through the form; returns the row the server stored.
+export async function createInvoice(page: Page, fields: { amount: string; orderId?: string; description?: string; customerReference?: string }) {
+  await page.goto("/invoices/new");
+  await page.getByLabel("Amount (USDC)").fill(fields.amount);
+  if (fields.orderId) await page.getByLabel("Order ID").fill(fields.orderId);
+  if (fields.description) await page.getByLabel("Description").fill(fields.description);
+  if (fields.customerReference) await page.getByLabel("Customer reference").fill(fields.customerReference);
+  await page.getByRole("button", { name: "Create invoice" }).click();
+  await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]{36}$/);
+  const [invoice] = await query<StoredInvoice>("SELECT * FROM invoices ORDER BY created_at DESC LIMIT 1");
+  return invoice!;
 }

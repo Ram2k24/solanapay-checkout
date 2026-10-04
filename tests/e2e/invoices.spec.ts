@@ -1,6 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { query, resetDatabase } from "./support/db";
-import { short, signInAsNewMerchant, tile } from "./support/merchant";
+import { createInvoice, short, signInAsNewMerchant, tile } from "./support/merchant";
 
 // §19 E2E: create invoice, checkout (the customer's page) and dashboard, through the
 // real UI. The payment itself is covered in payment.spec.ts.
@@ -8,20 +8,6 @@ import { short, signInAsNewMerchant, tile } from "./support/merchant";
 test.beforeEach(async () => {
   await resetDatabase();
 });
-
-type StoredInvoice = { id: string; invoice_number: string; amount: string; status: string; recipient_wallet: string; token_mint: string; reference: string };
-
-async function createInvoice(page: Page, fields: { amount: string; orderId?: string; description?: string; customerReference?: string }) {
-  await page.goto("/invoices/new");
-  await page.getByLabel("Amount (USDC)").fill(fields.amount);
-  if (fields.orderId) await page.getByLabel("Order ID").fill(fields.orderId);
-  if (fields.description) await page.getByLabel("Description").fill(fields.description);
-  if (fields.customerReference) await page.getByLabel("Customer reference").fill(fields.customerReference);
-  await page.getByRole("button", { name: "Create invoice" }).click();
-  await expect(page).toHaveURL(/\/invoices\/[0-9a-f-]{36}$/);
-  const [invoice] = await query<StoredInvoice>("SELECT * FROM invoices ORDER BY created_at DESC LIMIT 1");
-  return invoice!;
-}
 
 test("a merchant creates an invoice; the server fixes its terms", async ({ page }) => {
   const wallet = await signInAsNewMerchant(page);

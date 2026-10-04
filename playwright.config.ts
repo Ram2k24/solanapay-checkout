@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_APP_URL as APP_URL, E2E_RPC_URL as RPC_URL } from "./tests/e2e/support/env";
 
 // Browser (E2E) tests, Phase 14 (decisions F1-F3). Run: npm run test:e2e
 //
@@ -9,10 +10,6 @@ import { defineConfig, devices } from "@playwright/test";
 // don't run both at the same time.
 
 if (existsSync(".env")) process.loadEnvFile(".env");
-
-const APP_URL = "http://localhost:3200";
-const RPC_PORT = "3299";
-const RPC_URL = `http://127.0.0.1:${RPC_PORT}`;
 
 const testDb = process.env.TEST_DATABASE_URL ?? "";
 if (!testDb || !new URL(testDb).pathname.endsWith("_test")) {
@@ -36,12 +33,11 @@ export default defineConfig({
     {
       command: "npx tsx tests/e2e/support/mock-rpc.ts",
       url: `${RPC_URL}/health`,
-      env: { MOCK_RPC_PORT: RPC_PORT },
       reuseExistingServer: false,
     },
     {
       // Always a fresh build: NEXT_PUBLIC_* values are inlined at build time.
-      command: "npx next build && npx next start -p 3200",
+      command: `npx next build && npx next start -p ${new URL(APP_URL).port}`,
       url: `${APP_URL}/api/health`,
       timeout: 240_000,
       reuseExistingServer: false,
