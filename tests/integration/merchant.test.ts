@@ -5,7 +5,7 @@ import { GET as getMerchant, PATCH as updateMerchant, POST as createMerchant } f
 import { CIRCLE_USDC_MINT } from "@/lib/config/networks";
 import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
-import { apiRequest, json, signInNewWallet } from "../support/http";
+import { apiRequest, json, signInNewWallet, signInWith } from "../support/http";
 import { createTestWallet } from "../support/wallet";
 import { freezeClockMidMinute } from "../support/clock";
 
@@ -49,6 +49,25 @@ describe("merchant onboarding", () => {
       expect((await json(response)).error.fields.payoutWallet).toBeTruthy();
     }
     expect(await db.merchant.count()).toBe(0);
+  });
+
+  it("refuses another merchant's current payout wallet, chosen or as the signed-in default (Phase 13, D5)", async () => {
+    const existing = await signInNewWallet();
+    await createMerchant(apiRequest("/api/merchant", { cookie: existing.cookie, body: { name: "First" } }));
+
+    const { cookie } = await signInNewWallet();
+    const chosen = await createMerchant(apiRequest("/api/merchant", { cookie, body: { name: "Shop", payoutWallet: existing.wallet.address } }));
+    expect(chosen.status).toBe(400);
+    expect((await json(chosen)).error.fields.payoutWallet).toMatch(/another merchant's payout wallet/);
+
+    // A wallet signing in to open a business, when it is already another merchant's payout wallet.
+    const payout = await createTestWallet();
+    const second = await signInNewWallet();
+    await createMerchant(apiRequest("/api/merchant", { cookie: second.cookie, body: { name: "Second", payoutWallet: payout.address } }));
+    const asDefault = await createMerchant(apiRequest("/api/merchant", { cookie: (await signInWith(payout)).cookie, body: { name: "Third" } }));
+    expect(asDefault.status).toBe(400);
+    expect((await json(asDefault)).error.fields.payoutWallet).toMatch(/another merchant's payout wallet/);
+    expect(await db.merchant.count()).toBe(2);
   });
 
   it("allows only one profile per user", async () => {

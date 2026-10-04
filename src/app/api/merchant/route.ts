@@ -8,6 +8,7 @@ import { route } from "@/lib/http/route";
 import { enforceRateLimit } from "@/lib/http/rate-limit";
 import { requireMerchant, requireSession } from "@/lib/merchant/require-merchant";
 import { payoutWalletProblem } from "@/lib/merchant/payout-wallet";
+import { lockPayoutAddress, sharedPayoutProblem } from "@/lib/merchant/shared-payout";
 
 const nameSchema = z.string().trim().min(1, "Enter a business name.").max(120, "At most 120 characters.");
 const emailSchema = z.union([z.literal(""), z.email("Enter a valid email address.").max(254)]); // "" clears it
@@ -52,6 +53,9 @@ export const POST = route("merchant.create", async (request, { log }) => {
 
   try {
     const merchant = await db.$transaction(async (tx) => {
+      await lockPayoutAddress(tx, payoutWallet);
+      const shared = await sharedPayoutProblem(tx, payoutWallet, session.userId);
+      if (shared) throw new ApiError("InvalidRequest", { payoutWallet: shared });
       const created = await tx.merchant.create({
         data: { ownerUserId: session.userId, name: body.name, email: body.email || null },
       });

@@ -8,6 +8,7 @@ import { enforceRateLimit } from "@/lib/http/rate-limit";
 import { assertSameOrigin } from "@/lib/http/request";
 import { route } from "@/lib/http/route";
 import { payoutWalletProblem } from "@/lib/merchant/payout-wallet";
+import { lockPayoutAddress, sharedPayoutProblem } from "@/lib/merchant/shared-payout";
 import { requireMerchant } from "@/lib/merchant/require-merchant";
 
 // Step 2 of changing the payout wallet (Phase 11.4c, decision D5). Needs, besides the
@@ -49,6 +50,10 @@ export const POST = route("merchant.payout_wallet.change", async (request, { log
     await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchant.id}::uuid FOR UPDATE`;
     const current = await tx.wallet.findFirstOrThrow({ where: { merchantId: merchant.id, isDefault: true } });
     if (current.address === to) return null; // already done (e.g. a parallel confirmation)
+    // Another merchant may have taken this wallet since the challenge (decision D5).
+    await lockPayoutAddress(tx, to);
+    const shared = await sharedPayoutProblem(tx, to, session.userId);
+    if (shared) throw new ApiError("InvalidRequest", { payoutWallet: shared });
     await tx.wallet.update({ where: { id: current.id }, data: { isDefault: false } });
     await tx.wallet.upsert({
       where: { merchantId_address: { merchantId: merchant.id, address: to } },

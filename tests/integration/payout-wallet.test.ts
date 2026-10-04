@@ -188,3 +188,61 @@ describe("other sessions (Phase 13, decision D8)", () => {
     expect((await getMerchant(apiRequest("/api/merchant", { method: "GET", cookie: theirs.cookie }))).status).toBe(200);
   });
 });
+
+describe("one merchant per payout wallet (Phase 13, decision D5)", () => {
+  const defaultOf = async (session: Session) => {
+    const user = await db.user.findUniqueOrThrow({ where: { walletAddress: session.wallet.address }, include: { merchant: true } });
+    return (await db.wallet.findFirstOrThrow({ where: { merchantId: user.merchant!.id, isDefault: true } })).address;
+  };
+
+  it("refuses another merchant's current payout wallet before any challenge exists", async () => {
+    const mine = await merchant();
+    const theirs = await merchant();
+
+    const response = await challengeFor(mine.cookie, theirs.wallet.address);
+
+    expect(response.status).toBe(400);
+    expect((await json(response)).error.fields.payoutWallet).toMatch(/another merchant's payout wallet/);
+    expect(await db.authNonce.count({ where: { purpose: "PAYOUT_CHANGE" } })).toBe(0);
+  });
+
+  it("allows a wallet another merchant used before but no longer pays to", async () => {
+    const mine = await merchant();
+    const theirs = await merchant();
+    await changeTo(theirs, (await createTestWallet()).address);
+
+    expect((await changeTo(mine, theirs.wallet.address)).status).toBe(200);
+    expect(await defaultOf(mine)).toBe(theirs.wallet.address);
+  });
+
+  it("refuses the confirmation if another merchant took the wallet after the challenge", async () => {
+    const mine = await merchant();
+    const theirs = await merchant();
+    const target = await createTestWallet();
+    const challenge = await json(await challengeFor(mine.cookie, target.address));
+    expect((await changeTo(theirs, target.address)).status).toBe(200);
+
+    const response = await confirm(mine.cookie, { nonce: challenge.nonce, signature: await mine.wallet.sign(challenge.message) });
+
+    expect(response.status).toBe(400);
+    expect((await json(response)).error.fields.payoutWallet).toMatch(/another merchant's payout wallet/);
+    expect(await defaultOf(mine)).toBe(mine.wallet.address);
+    expect(await db.auditLog.count({ where: { action: "merchant.payout_wallet_changed" } })).toBe(1); // theirs only
+  });
+
+  it("gives the wallet to only one of two merchants confirming at the same moment", async () => {
+    const [first, second] = [await merchant(), await merchant()];
+    const target = await createTestWallet();
+    const bodies = await Promise.all(
+      [first, second].map(async (session) => {
+        const challenge = await json(await challengeFor(session.cookie, target.address));
+        return { nonce: challenge.nonce, signature: await session.wallet.sign(challenge.message) };
+      }),
+    );
+
+    const responses = await Promise.all([confirm(first.cookie, bodies[0]), confirm(second.cookie, bodies[1])]);
+
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 400]);
+    expect(await db.wallet.count({ where: { address: target.address, isDefault: true } })).toBe(1);
+  });
+});

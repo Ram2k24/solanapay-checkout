@@ -31,7 +31,11 @@ export async function json(response: Response) {
 
 // Signs in a fresh throwaway wallet; returns its session cookie.
 export async function signInNewWallet() {
-  const wallet = await createTestWallet();
+  return signInWith(await createTestWallet());
+}
+
+// Signs in with a given test wallet (e.g. one that is already another merchant's payout wallet).
+export async function signInWith(wallet: Awaited<ReturnType<typeof createTestWallet>>) {
   const challenge = await json(await nonce(apiRequest("/api/auth/nonce", { body: { walletAddress: wallet.address } })));
   const response = await verify(
     apiRequest("/api/auth/verify", { body: { nonce: challenge.nonce, signature: await wallet.sign(challenge.message) } }),
