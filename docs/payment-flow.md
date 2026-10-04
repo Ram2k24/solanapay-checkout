@@ -1,7 +1,7 @@
 # Payment flow
 
 How a USDC payment moves through SolanaPay Checkout. Sections are filled in as each
-phase is implemented; nothing below "planned" exists yet.
+phase is implemented.
 
 ## Overview
 
@@ -11,8 +11,9 @@ phase is implemented; nothing below "planned" exists yet.
                                   store PENDING invoice          (Phase 6: implemented)
                                   build Solana Pay URL + QR ────▶ scan / open link      (Phase 7: implemented)
                                   build unsigned tx (stored terms) ◀─ wallet POSTs account (Phase 7b: implemented)
+                                  same tx for a browser wallet ◀── page POSTs account   (Phase 8: implemented)
                                                                   wallet signs USDC
-                                                                  transfer + reference  (Phase 8: planned in-browser)
+                                                                  transfer + reference
                                   find tx by reference,
                                   verify against stored invoice
                                   CONFIRMING → PAID              ◀── confirmed / finalized (Phase 9: implemented)
@@ -187,7 +188,54 @@ Phase 9 must expect a transaction to be served and never land.
 
 Only Phantom on Android has been tested; other wallets are unverified.
 
-## 5. In-browser payment (Phase 8: planned)
+## 5. In-browser payment (Phase 8: implemented)
+
+On a computer with a wallet extension (or inside a wallet's in-app browser), the
+checkout page offers **"Or pay with a browser wallet"** under the QR code. Phones
+without a wallet don't see it; the QR stays the main path.
+
+**The browser only initiates.** It never builds, edits or judges a payment:
+
+1. **Connect** (Wallet Standard, the same client as merchant sign-in). A readiness check
+   (`src/lib/wallet/pay-readiness.ts`) needs the account on our network, a signer with
+   `signAndSendTransactions` (decision D1: the wallet signs **and** broadcasts) and
+   version-0 transactions; otherwise the customer is pointed to the QR code.
+2. **Ask our server for the transaction**: `POST /api/pay/[id]/transaction {account}`,
+   the same Transaction Request endpoint phone wallets use (§4b), same builder, same
+   limits. Every payment term comes from the stored invoice, so the reference is always
+   included, even on plain `http://localhost` where the QR falls back to the basic link.
+   The browser sends only the address and checks that this account is the **only signer**
+   (and so the fee payer) before any wallet sees it (`request-transaction.ts`).
+3. **The wallet signs and sends** exactly that transaction (`pay-with-wallet.ts`).
+   Phantom adds ComputeBudget (priority fee) instructions before signing; that is
+   allowed and doesn't affect matching, which reads the transfer and balance changes.
+4. **Detection is unchanged** (§7): the page's status poll or the reconciler finds the
+   payment by reference and the server re-renders the page. The returned signature is
+   shown only as an Explorer link.
+
+**Failures are told apart**: a rejection in the wallet ("You cancelled…", retry at
+once), a wallet error such as a failed simulation ("Your wallet couldn't complete the
+payment…", worded so it never claims nothing was sent), and server refusals (self-
+payment, not payable, rate-limited, unavailable) with our own messages, never the
+server's text.
+
+**No double payment from one browser** (`payment-attempts.ts`, decision 2026-10-03,
+after two tabs paid one invoice 3-4 s apart): clicking Pay writes a note to
+`localStorage`; every other tab of that invoice follows it live (`storage` event).
+While a payment is being approved, or for 2 minutes after it was sent, other tabs and
+reloads show the note instead of a Pay button; afterwards a sent note offers "Pay
+again anyway". 2 minutes covers a blockhash lifetime: a wallet popup left open by a
+reloaded page **can still pay** if confirmed in time (verified with Phantom). This is
+a convenience, never evidence; payments from another device are recorded by Phase 9
+as `DUPLICATE_PAYMENT`.
+
+**A stale page repairs itself**: if the status poll has seen a change but the
+server-rendered page still shows the old status 5 s later (a refresh that never
+applied, seen once in testing), the page reloads once. Both sides compute the status
+with `effectiveStatus` from the same row, so a fresh page can't loop.
+
+Only Phantom (desktop extension, Testnet Mode) has been tested.
+
 ## 6. Verification (Phase 9: implemented)
 
 **Never paid on the browser's word.** An invoice becomes PAID only when the server

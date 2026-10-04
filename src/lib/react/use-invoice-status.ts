@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { InvoiceStatus } from "@/generated/prisma/enums";
 import { createStatusPoller, readStatusResponse, type PollerState } from "@/lib/payments/status-poller";
 
-// Live invoice status for customer-facing screens (checkout page now, the Phase 8
-// in-browser payment later). A thin React wrapper around the framework-free poller:
+// Live invoice status for the checkout page, which also follows in-browser payments
+// (Phase 8). A thin React wrapper around the framework-free poller:
 // all timing rules live in status-poller.ts. The status is for display and for
 // deciding when to re-render server output; it is never evidence of payment.
 export function useInvoiceStatus(

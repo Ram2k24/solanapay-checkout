@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–7b, 9 and 10 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, on-chain payment verification, automatic detection and expiry). Phase 8 (in-browser payment) is next.
+**Status:** early development. Phases 1–10 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -47,6 +47,10 @@ Implemented so far:
 - Automatic expiry, chain first: overdue invoices become Expired only after a successful
   on-chain check finds no payment; money arriving later is recorded for review
 - Database-backed rate limits with `Retry-After`, and one shared RPC budget
+- In-browser payment: on a computer with a wallet extension, "Pay with a browser
+  wallet" asks the server for the payment transaction (stored terms, reference
+  included) and the wallet signs and sends it; rejections, wallet errors and server
+  refusals are told apart, and a browser-wide note prevents paying twice from two tabs
 - PostgreSQL schema for merchants, invoices, payments and an append-only audit log,
   with database-level constraints (see [docs/database.md](docs/database.md))
 
@@ -107,7 +111,7 @@ and the manual test checklist.
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 396 tests: auth, invoices, Solana Pay, transaction requests, verification (real devnet fixtures), detection, expiry, concurrency
+    npm test                # 448 tests: auth, invoices, Solana Pay, transaction requests, in-browser payment, verification (real devnet fixtures), detection, expiry, concurrency
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.

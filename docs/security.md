@@ -141,6 +141,25 @@ Sessions last 8 hours (absolute).
 - **The browser is never the authority:** the checkout page only asks the server to
   re-render; the status it polls is display data.
 
+## In-browser payment (Phase 8)
+
+- **The browser is an initiator only.** It sends just the connected address to the
+  Transaction Request endpoint (§ Phase 7b, unchanged: stored terms, limits, CORS) and
+  hands the returned transaction to the wallet unmodified. No amount, mint, recipient
+  or reference ever comes from the browser, and nothing it reports (a signature, "sent")
+  changes an invoice; detection and verification are Phase 9/10's.
+- **Checked before the wallet sees it:** the connected account must be the only signer
+  (and therefore the fee payer) and the transaction still unsigned; anything else is
+  refused (mutation-tested).
+- **The customer's wallet signs** (`solana:signAndSendTransaction`); the server never
+  holds or asks for keys. Customer messages are our own; wallet and server error text
+  is never shown.
+- **The cross-tab attempt note** (`localStorage`) is a per-browser convenience against
+  accidental double payment. It holds no secrets and is validated on read (a forged
+  note can at most hide the Pay button for 2 minutes or show an Explorer link for a
+  well-formed signature). Duplicates from other devices are caught by Phase 9.
+- The merchant's own payout wallet is refused as payer (`SelfPaymentNotAllowed`).
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -176,10 +195,15 @@ state-consistency CHECKs, and an append-only audit log.
 - **Wallets may ignore Solana Pay `reference`** in transfer links (observed with
   Phantom mobile's QR scanner): Transaction Requests are now the primary path over
   HTTPS (Phase 7b, verified with Phantom Android); payments without a reference go to
-  the Unmatched payments review list (Phase 9).
+  the Unmatched payments review list (Phase 9). The in-browser payment (Phase 8) always
+  carries the reference, also over plain HTTP.
 - **Payout wallet program check:** the denylist covers well-known programs and USDC
   mints; checking via RPC that no program is deployed at the address is planned
   (Phase 13).
+- **One payout wallet, several merchants:** a wallet can be the payout address of more
+  than one merchant profile (seen in testing after signing in with the wrong account).
+  Payments with a reference are matched correctly; payments without one, and the "USDC
+  received" totals, can't be told apart. Whether to forbid this: open question, Phase 13.
 - **Public RPC endpoints rate-limit bursts:** on devnet the public endpoint returned
   HTTP 429 to a burst our own budget allowed (absorbed by the backoff). Production must
   use a dedicated RPC provider (Phase 15).

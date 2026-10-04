@@ -175,4 +175,40 @@ with a clean console. See payment-flow.md §7.
 
 ## 9. In-browser payment
 
-Phase 8 adds its devnet test steps here.
+Desktop Chrome with the Phantom extension in Testnet Mode (devnet). Use a **customer**
+account, not the merchant's payout wallet (that one is refused as self-payment). Fund
+it with devnet SOL (https://faucet.solana.com) and USDC (https://faucet.circle.com,
+Solana Devnet). Keep `npm run dev` and `npm run reconciler` running.
+
+| # | Scenario | How | Expected |
+|---|---|---|---|
+| 1 | Wallet rejection | Pay → Cancel in Phantom | Grey "You cancelled…", Pay available again, invoice Pending, nothing on-chain |
+| 2 | Insufficient USDC | Invoice above the balance | Phantom's simulation blocks it; Cancel → "cancelled" |
+| 2b | Forced failure | Same, "Confirm (unsafe)" | Amber wallet error; nothing broadcast, no fee |
+| 3 | Insufficient SOL | Account with USDC, 0 SOL | Phantom: "not enough SOL"; amber wallet error; invoice Pending |
+| 4 | Duplicate attempt | Same invoice in two tabs; Pay in one | Other tab: "waiting for approval…", then "already sent…", no Pay button; 1 payment |
+| 5 | Offline / slow | DevTools Network: Offline, then Slow 3G | Offline: "We couldn't prepare the payment", no wallet popup. Slow: works, just slower |
+| 6 | Reload during approval | Pay, reload while the popup is open | Phantom's popup survives the reload and can still pay; the page shows the approval note, not a Pay button, for up to 2 min |
+| 7 | Close and reopen | Pay, close the tab, reopen the link | Paid (found by the reconciler) |
+| 8 | Hidden tab | Pay, switch tabs for 30 s | Paid on return (reconciler or the immediate poll on return) |
+| 9 | Reload a paid page | Reload twice | The same server-recorded payment every time |
+
+**Verified 2026-10-03/04** (live devnet, Phantom extension, INV-2026-00023 to 00040 and
+a second test merchant's INV-2026-00001/00002): all ten scenarios as expected. Payments
+were detected 2.5-10 s after landing, by the status API or the reconciler, always
+matched by reference (also over plain `http://localhost`). Findings that changed the
+code:
+
+- **Two tabs paid one invoice twice** (INV-28, INV-29; 3-4 s apart, before detection).
+  Phase 9 recorded the second payment as `DUPLICATE_PAYMENT`, never double-PAID, but the
+  money moved twice. Fixed with the browser-wide attempt note (payment-flow.md §5);
+  re-tested on INV-30/31: 1 transaction, 1 payment.
+- **A page that didn't update after its status changed** (INV-31: the refresh reached
+  the server, no console error, but the tab kept the old view; not reproducible).
+  Fixed with the 5 s stale-page reload, proven by forcing the refresh to hang (INV-37:
+  reload 4.9 s after detection, then Paid).
+- **A popup left open by a reloaded page can still pay** (INV-38, confirmed within 5 s);
+  confirmed after the blockhash expired, nothing lands. This is why the approval note
+  holds for 2 minutes.
+- **The wrong Phantom account signed in to the dashboard** created a second merchant;
+  the onboarding page now shows which wallet is signed in.

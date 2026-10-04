@@ -16,6 +16,7 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
 | Money | Integer base units (`BIGINT`, TS `bigint`); USDC = 6 decimals | No floating-point rounding |
 | Auth | Sign-In With Solana: nonce, wallet signature, httpOnly session cookie | Wallet connection alone is not authentication |
 | Background work | A reconciler endpoint (`POST /api/internal/reconcile`, `CRON_SECRET`) called by an external scheduler; state in `invoice_checks` with leases | No timers inside Next.js: they break on serverless hosts, multiply across instances and duplicate on dev hot reload |
+| Browser payments | The page asks the server for the Transaction Request transaction and the wallet signs and sends it (`solana:signAndSendTransaction`) | One builder for phones and browsers; the browser never constructs or judges a payment |
 
 ## Invoice state machine
 
@@ -96,6 +97,10 @@ Sign-In With Solana with server-side sessions. See [security.md](security.md).
 - `src/lib/solana/client.ts`: `createClient().use(walletSigner({ chain })).use(solanaRpc(...))`
   from `@solana/kit`, provided to React via `ClientProvider` (`@solana/react`).
 - `SessionProvider` exposes the server session and `signIn`/`signOut` to the UI.
+- Checkout (`/pay/[id]`, Phase 8): `WalletPay` (connect, readiness, Pay button) and
+  `StatusWatcher` (one poller; refresh, or reload if a refresh doesn't apply). Browser
+  payment logic is framework-free in `src/lib/wallet/` (`pay-readiness`,
+  `request-transaction`, `pay-with-wallet`, `payment-attempts`) and unit-tested.
 
 ## Invoices
 

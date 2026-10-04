@@ -1,7 +1,7 @@
 import type { InvoiceStatus } from "@/generated/prisma/enums";
 
-// Polls the public invoice status for the checkout page (and, later, the Phase 8
-// in-browser payment screen). Framework-free: no React, no DOM, so its timing is
+// Polls the public invoice status for the checkout page, including after an in-browser
+// payment (Phase 8 adds no second poller). Framework-free: no React, no DOM, so its timing is
 // testable with fake timers. It only decides WHEN to ask the server; whatever status
 // it receives is used to re-render server output, never as evidence of payment.
 //

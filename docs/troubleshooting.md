@@ -168,3 +168,39 @@ The dev server isn't running (the loop calls `http://localhost:3000`), or
 
 **The checkout page says "Updates paused while this tab is in the background"**
 Expected: polling pauses in hidden tabs and resumes when you come back.
+
+## In-browser payment (Phase 8)
+
+**No "Or pay with a browser wallet" section on the checkout page**
+It appears only while the invoice is payable and a Wallet Standard wallet is installed
+in this browser (or you're in a wallet's in-app browser). Phones without one only get
+the QR code, by design.
+
+**"This wallet receives the payment, so it can't pay this invoice"**
+The connected account is the merchant's payout wallet. Switch Phantom to a customer
+account and reconnect (Disconnect in the panel, then connect again).
+
+**Phantom connects the wrong account**
+Phantom shares whichever account is active in the extension. Switch accounts in
+Phantom first; if it still offers the old one, remove `localhost:3000` under
+Settings → Connected apps and connect again.
+
+**"Set up your merchant profile" although you already have one**
+You signed in with a different wallet (each wallet is its own merchant account); the
+page shows which one. Sign out, switch Phantom to your merchant wallet, sign in again.
+
+**"A payment for this invoice is waiting for approval in your wallet…" and no Pay button**
+Another tab, or this page before a reload, started a payment. Finish or cancel it in
+the Phantom popup (it survives a reload and can still pay). If the popup is gone, the
+Pay button returns within 2 minutes.
+
+**"You cancelled the payment in your wallet" although you didn't**
+Phantom reports closing its "Are you sure?" screen (shown when its simulation fails,
+e.g. not enough USDC) as a rejection. Check the balances shown in the panel.
+
+**Phantom says "Not enough SOL" while you have SOL**
+Shown when its simulation fails for another reason, typically not enough USDC.
+
+**The checkout reloads itself once right after a payment**
+Expected if the page didn't update within 5 s of the status changing (a refresh that
+didn't apply); the reload shows the server's current state.
