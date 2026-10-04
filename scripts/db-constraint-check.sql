@@ -191,6 +191,14 @@ INSERT INTO results SELECT 'every invoice has a scheduling row (trigger)',
   CASE WHEN NOT EXISTS (SELECT 1 FROM invoices i LEFT JOIN invoice_checks c ON c.invoice_id = i.id WHERE c.invoice_id IS NULL)
             AND (SELECT count(*) FROM invoices) > 0 THEN 'PASS' ELSE 'FAIL' END;
 
+-- Wallet challenges (Phase 11.4): the new payout wallet is set exactly for payout changes.
+SELECT pg_temp.expect_error('payout-change challenge without the new wallet is rejected',
+  $q$INSERT INTO auth_nonces (id, nonce, wallet_address, message, expires_at, purpose)
+     VALUES (gen_random_uuid(), 'TestNonceA1', 'TestWa11etAddress1111111111111111111111111', 'm', now() + interval '5 minutes', 'PAYOUT_CHANGE')$q$, '23514');
+SELECT pg_temp.expect_error('sign-in challenge naming a payout wallet is rejected',
+  $q$INSERT INTO auth_nonces (id, nonce, wallet_address, message, expires_at, new_payout_wallet)
+     VALUES (gen_random_uuid(), 'TestNonceB1', 'TestWa11etAddress1111111111111111111111111', 'm', now() + interval '5 minutes', 'TestWa11etAddress2222222222222222222222222')$q$, '23514');
+
 \pset footer off
 SELECT test, outcome FROM results;
 SELECT count(*) FILTER (WHERE outcome = 'PASS') AS passed, count(*) AS total FROM results;

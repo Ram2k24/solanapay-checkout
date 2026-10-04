@@ -76,6 +76,15 @@ enum UnmatchedStatus {
   @@map("unmatched_status")
 }
 
+// What a signed wallet challenge (auth_nonces) authorizes; a challenge is only accepted
+// for its own purpose (Phase 11.4).
+enum ChallengePurpose {
+  SIGN_IN
+  PAYOUT_CHANGE // confirms changing the merchant's payout wallet to new_payout_wallet
+
+  @@map("challenge_purpose")
+}
+
 enum ActorType {
   USER
   SYSTEM
@@ -299,13 +308,15 @@ model AuditLog {
 // One-time sign-in challenge (Sign-In With Solana). The server builds the full
 // message and stores it; the wallet signs exactly these bytes. Single use.
 model AuthNonce {
-  id            String    @id @default(uuid(7)) @db.Uuid
-  nonce         String    @unique @db.VarChar(64)
-  walletAddress String    @map("wallet_address") @db.VarChar(44)
-  message       String    @db.VarChar(1000)
-  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
-  usedAt        DateTime? @map("used_at") @db.Timestamptz(3)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id              String           @id @default(uuid(7)) @db.Uuid
+  nonce           String           @unique @db.VarChar(64)
+  walletAddress   String           @map("wallet_address") @db.VarChar(44)
+  message         String           @db.VarChar(1000)
+  purpose         ChallengePurpose @default(SIGN_IN)
+  newPayoutWallet String?          @map("new_payout_wallet") @db.VarChar(44) // set exactly for PAYOUT_CHANGE
+  expiresAt       DateTime         @map("expires_at") @db.Timestamptz(3)
+  usedAt          DateTime?        @map("used_at") @db.Timestamptz(3)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([expiresAt])
   @@map("auth_nonces")

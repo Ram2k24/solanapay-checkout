@@ -4,6 +4,7 @@ import { POST as logout } from "@/app/api/auth/logout/route";
 import { POST as nonce } from "@/app/api/auth/nonce/route";
 import { GET as session } from "@/app/api/auth/session/route";
 import { POST as verify } from "@/app/api/auth/verify/route";
+import { consumeChallenge } from "@/lib/auth/challenge";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
@@ -192,5 +193,54 @@ describe("rejections", () => {
     const response = await session(request("/api/auth/session", { method: "GET" }));
     expect(response.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
     expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+});
+
+// Phase 11.4: a challenge is only accepted for the purpose it was issued for.
+describe("challenge purposes", () => {
+  const NEW_PAYOUT = "JBLD6pPzGX6EWiUVcUZsLe2pqZuddQbwJQWRRfvErMDk";
+  const payoutChallenge = (walletAddress: string, nonceValue: string) =>
+    db.authNonce.create({
+      data: {
+        nonce: nonceValue, walletAddress, message: `Confirm payout wallet ${NEW_PAYOUT} (${nonceValue})`,
+        purpose: "PAYOUT_CHANGE", newPayoutWallet: NEW_PAYOUT, expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+  it("new challenges are sign-in challenges, and sign-in still works", async () => {
+    const wallet = await createTestWallet();
+    const { challenge, response } = await signIn(wallet);
+    expect(response.status).toBe(200);
+    expect(await db.authNonce.findUniqueOrThrow({ where: { nonce: challenge.nonce } })).toMatchObject({ purpose: "SIGN_IN", newPayoutWallet: null });
+  });
+
+  it("a signed payout-change challenge can't sign anyone in, and isn't used up by trying", async () => {
+    const wallet = await createTestWallet();
+    const stored = await payoutChallenge(wallet.address, "PayoutNonce111111");
+
+    const response = await verify(request("/api/auth/verify", { body: { nonce: stored.nonce, signature: await wallet.sign(stored.message) } }));
+
+    expect(response.status).toBe(401);
+    expect((await json(response)).error.code).toBe("ChallengeExpired");
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect((await db.authNonce.findUniqueOrThrow({ where: { nonce: stored.nonce } })).usedAt).toBeNull();
+  });
+
+  it("a sign-in challenge can't be used as a payout-change confirmation", async () => {
+    const wallet = await createTestWallet();
+    const challenge = await json(await nonce(request("/api/auth/nonce", { body: { walletAddress: wallet.address } })));
+
+    expect(await consumeChallenge(challenge.nonce, "PAYOUT_CHANGE")).toBeNull();
+    expect(await consumeChallenge(challenge.nonce, "SIGN_IN")).toMatchObject({ walletAddress: wallet.address, newPayoutWallet: null });
+  });
+
+  it("a payout-change challenge returns its stored new wallet, once", async () => {
+    const wallet = await createTestWallet();
+    const stored = await payoutChallenge(wallet.address, "PayoutNonce222222");
+
+    expect(await consumeChallenge(stored.nonce, "PAYOUT_CHANGE")).toEqual({
+      walletAddress: wallet.address, message: stored.message, newPayoutWallet: NEW_PAYOUT,
+    });
+    expect(await consumeChallenge(stored.nonce, "PAYOUT_CHANGE")).toBeNull(); // replay
   });
 });

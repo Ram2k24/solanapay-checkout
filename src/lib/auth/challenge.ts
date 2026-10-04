@@ -28,14 +28,21 @@ export async function issueChallenge(walletAddress: string) {
   return { nonce, message, expiresAt };
 }
 
+export type ChallengePurpose = "SIGN_IN" | "PAYOUT_CHANGE";
+
 // Marks the challenge used and returns it, or null if it doesn't exist, has expired,
-// or was already used. The single UPDATE ... WHERE used_at IS NULL makes this atomic:
-// two concurrent requests with the same nonce can't both succeed (replay protection).
-export async function consumeChallenge(nonce: string): Promise<{ walletAddress: string; message: string } | null> {
-  const rows = await db.$queryRaw<{ wallet_address: string; message: string }[]>`
+// was already used, or was issued for another purpose (Phase 11.4: a signed payout-change
+// confirmation can't sign anyone in, and a sign-in signature can't change a wallet).
+// The single UPDATE ... WHERE used_at IS NULL makes this atomic: two concurrent requests
+// with the same nonce can't both succeed (replay protection).
+export async function consumeChallenge(
+  nonce: string,
+  purpose: ChallengePurpose,
+): Promise<{ walletAddress: string; message: string; newPayoutWallet: string | null } | null> {
+  const rows = await db.$queryRaw<{ wallet_address: string; message: string; new_payout_wallet: string | null }[]>`
     UPDATE auth_nonces SET used_at = now()
-    WHERE nonce = ${nonce} AND used_at IS NULL AND expires_at > now()
-    RETURNING wallet_address, message`;
+    WHERE nonce = ${nonce} AND purpose = ${purpose}::challenge_purpose AND used_at IS NULL AND expires_at > now()
+    RETURNING wallet_address, message, new_payout_wallet`;
   const row = rows[0];
-  return row ? { walletAddress: row.wallet_address, message: row.message } : null;
+  return row ? { walletAddress: row.wallet_address, message: row.message, newPayoutWallet: row.new_payout_wallet } : null;
 }

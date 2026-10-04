@@ -31,7 +31,7 @@ export const POST = route("auth.verify", async (request, { log }) => {
   const { nonce, signature } = await parseJsonBody(request, bodySchema);
 
   // Consumed before verifying, so a nonce can never be tried twice.
-  const challenge = await consumeChallenge(nonce);
+  const challenge = await consumeChallenge(nonce, "SIGN_IN");
   if (!challenge) throw new ApiError("ChallengeExpired");
 
   const signatureBytes = decodeBase64(signature);
