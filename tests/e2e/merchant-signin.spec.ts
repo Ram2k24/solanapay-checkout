@@ -1,6 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { query, resetDatabase } from "./support/db";
-import { installTestWallet, TEST_WALLET_NAME, type TestWallet } from "./support/test-wallet";
+import { connectWallet, short, signIn } from "./support/merchant";
+import { installTestWallet } from "./support/test-wallet";
 
 // §19 E2E: merchant login (Sign-In With Solana through a real wallet flow) and
 // onboarding, in a real browser against a production build.
@@ -8,20 +9,6 @@ import { installTestWallet, TEST_WALLET_NAME, type TestWallet } from "./support/
 test.beforeEach(async () => {
   await resetDatabase();
 });
-
-const short = (address: string) => `${address.slice(0, 4)}…${address.slice(-4)}`;
-
-async function connectWallet(page: Page) {
-  await page.getByRole("button", { name: "Connect wallet" }).click();
-  await page.getByRole("dialog", { name: "Wallet" }).getByRole("button", { name: TEST_WALLET_NAME }).click();
-}
-
-async function signIn(page: Page, wallet: TestWallet) {
-  await connectWallet(page);
-  await expect(page.getByRole("button", { name: short(wallet.address) })).toBeVisible();
-  await page.getByRole("button", { name: "Sign in with wallet" }).click();
-  await expect(page.getByText("Signed in as merchant")).toBeVisible();
-}
 
 test("merchant pages ask for sign-in and show no data before it", async ({ page }) => {
   await installTestWallet(page);
