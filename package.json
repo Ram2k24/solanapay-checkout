@@ -22,6 +22,7 @@
     "db:role": "./scripts/db-app-role.sh",
     "smoke": "./scripts/smoke-test.sh",
     "test:e2e": "playwright test",
+    "test:devnet": "vitest run --config vitest.devnet.config.mts",
     "db:seed": "tsx --conditions=react-server scripts/seed-dev.ts",
     "reconciler": "node scripts/reconciler-loop.mjs"
   },

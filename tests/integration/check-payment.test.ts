@@ -208,6 +208,29 @@ describe("payments that can't settle the invoice go to the unmatched list", () =
   });
 });
 
+// §19 blockchain cases "wrong token" and "wrong recipient", end to end through the
+// database: the real INV-17 payment with one thing changed is not a payment to this
+// invoice at all, so nothing is recorded (not even as unmatched).
+const variant = (fixture: Fixture, from: string, to: string): Fixture => JSON.parse(JSON.stringify(fixture).replaceAll(from, to));
+
+describe("wrong token and wrong recipient", () => {
+  it("the same transfer in another token (mint) settles nothing and records nothing", async () => {
+    const { target } = await setup();
+    land(variant(referencePayment, "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"));
+    expect(await check(target)).toEqual({ status: "PENDING", recorded: [] });
+    expect(await db.payment.count()).toBe(0);
+    expect(await db.unmatchedPayment.count()).toBe(0);
+  });
+
+  it("the same transfer into another owner's token account settles nothing and records nothing", async () => {
+    const { target } = await setup();
+    land(variant(referencePayment, MERCHANT_WALLET, "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU"));
+    expect(await check(target)).toEqual({ status: "PENDING", recorded: [] });
+    expect(await db.payment.count()).toBe(0);
+    expect(await db.unmatchedPayment.count()).toBe(0);
+  });
+});
+
 describe("ignored and refused", () => {
   it("skips failed transactions and transactions that don't credit the merchant", async () => {
     const { target } = await setup();
