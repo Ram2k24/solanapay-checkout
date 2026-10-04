@@ -221,7 +221,8 @@ function PayButton({
   if (other?.state === "approving" && held) {
     return (
       <p className="rounded-lg bg-slate-50 p-3 text-slate-700" role="status">
-        A payment for this invoice is waiting for approval in your wallet, from another tab. Finish or cancel it there.
+        A payment for this invoice is waiting for approval in your wallet, from this or another tab. Finish or cancel it
+        there. If it&apos;s no longer open, you can pay again here within 2 minutes.
       </p>
     );
   }
