@@ -1,0 +1,120 @@
+# Continuous integration (Phase 14, decision F5): the same checks as on a developer
+# machine, from a clean checkout. Inactive until the repository is pushed to GitHub.
+#
+# The database runs from docker-compose.yml, so the project's own scripts (db:test:setup,
+# db:role, db:check, smoke) work unchanged. `.env` is written here with values used only
+# by this run: fresh random secrets and passwords, public devnet URLs, no real keys.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      devnet:
+        description: "Also run the live devnet suite (needs public devnet)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Write a CI-only .env
+        run: |
+          pg_password=$(openssl rand -hex 16)
+          app_password=$(openssl rand -hex 24)
+          auth_secret=$(openssl rand -hex 32)
+          cron_secret=$(openssl rand -hex 32)
+          for value in "$pg_password" "$app_password" "$auth_secret" "$cron_secret"; do echo "::add-mask::$value"; done
+          owner="postgresql://solanapay:${pg_password}@localhost:5432"
+          app="postgresql://solanapay_app:${app_password}@localhost:5432"
+          cat > .env <<EOF
+          APP_ENV=test
+          LOG_LEVEL=warn
+          NEXT_PUBLIC_APP_URL=http://localhost:3000
+          NEXT_PUBLIC_SOLANA_NETWORK=devnet
+          NEXT_PUBLIC_SOLANA_RPC_URL=https://api.devnet.solana.com
+          NEXT_PUBLIC_SOLANA_EXPLORER_URL=https://explorer.solana.com
+          SOLANA_RPC_URL=https://api.devnet.solana.com
+          USDC_MINT_DEVNET=4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU
+          USDC_MINT_MAINNET=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v
+          AUTH_SECRET=${auth_secret}
+          CRON_SECRET=${cron_secret}
+          POSTGRES_USER=solanapay
+          POSTGRES_PASSWORD=${pg_password}
+          POSTGRES_DB=solanapay
+          POSTGRES_PORT=5432
+          APP_DB_PASSWORD=${app_password}
+          MIGRATE_DATABASE_URL=${owner}/solanapay
+          DATABASE_URL=${app}/solanapay
+          TEST_MIGRATE_DATABASE_URL=${owner}/solanapay_test
+          TEST_DATABASE_URL=${app}/solanapay_test
+          EOF
+
+      - name: Start PostgreSQL
+        run: docker compose up -d --wait postgres
+
+      - name: Install dependencies (also generates the Prisma client)
+        run: npm ci
+
+      - name: Migrate (as the owner) and create the app role
+        run: |
+          npm run db:deploy
+          npm run db:test:setup
+          npm run db:role
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and integration tests (as the app role)
+        run: npm test
+
+      - name: Database checks
+        run: npm run db:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke test
+        run: npm run smoke
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests (E2E)
+        run: npm run test:e2e
+
+      - name: Keep the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+      - name: Dependency audit (report only)
+        run: npm audit --omit=dev || true
+
+      - name: Live devnet suite (manual runs only)
+        if: github.event_name == 'workflow_dispatch' && inputs.devnet
+        run: npm run test:devnet
