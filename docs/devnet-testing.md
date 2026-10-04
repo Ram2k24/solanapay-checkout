@@ -236,3 +236,21 @@ database exactly (18.00 USDC, 38 / 0 / 17 / 21, 2 unmatched; Recent payments INV
 switched to Paid by itself and stopped refreshing. Payout wallet changed 4dqH → JBLD → 4dqH
 with Phantom (two audited changes; one cancelled challenge left unused). After each refresh
 only the navigation links re-prefetch (row links have prefetch off).
+
+## 11. Transaction history (Phase 12)
+
+| # | Action | Expected |
+|---|---|---|
+| 1 | Open Transactions | Verified payments, newest first, 20 per page ("Older transactions →" only with more than 20) |
+| 2 | Tabs Confirming / Finalized / Late | Only matching payments; an empty tab says "No transactions match." |
+| 3 | Search a full signature, then `inv-2026-00038` (lower case) | Exactly one row each |
+| 4 | Search `INV-2026` | "Enter a full transaction signature or an invoice number…", no rows |
+| 5 | Details on a row | Every stored field; compare with Solana Explorer (signature, slot, sender, status, time) |
+| 6 | Download CSV and open it in a spreadsheet | 18 columns, one row per payment, newest first, UTC times; an empty view shows no download link |
+
+**Verified 2026-10-04** (production build): 19 verified payments listed on one page;
+filters, both search kinds and the invalid-input hint as expected; INV-2026-00040's
+detail page matched Solana Explorer field for field (signature, fee payer `BdSt…`, slot
+507244096, finalized, 04:39:04 UTC); the CSV had 19 rows totalling 20 USDC (matching the
+dashboard), old phone-QR and new browser payments together, none of the other merchant's.
+A spreadsheet shows `1.00` as `1` (number format); the file holds `1.00`.

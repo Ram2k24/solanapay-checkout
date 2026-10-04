@@ -106,8 +106,21 @@ Sign-In With Solana with server-side sessions. See [security.md](security.md).
   a re-render reads only the database, never Solana. Table row links don't prefetch.
 - Settings: `ProfileForm` (PATCH `/api/merchant`) and `PayoutWalletForm` (challenge,
   wallet signature, confirm; see security.md).
+- Transactions (Phase 12): `/transactions` (tabs, exact search, keyset pages, CSV link)
+  and `/transactions/[id]` render on the server from `listPayments` / `getPayment`
+  (`src/lib/payments/list-payments.ts`); `GET /api/payments/export` streams the same
+  query as CSV (`payments-csv.ts`). No JSON list API: nothing needs one yet.
 
 ## Invoices
 
 See [payment-flow.md](payment-flow.md). Business rules live in `src/lib/payments/`;
 API routes and pages are thin wrappers around them.
+
+## Scaling notes (for the Phase 17 roadmap)
+
+- **Payments per merchant.** `payments` has no `merchant_id`; merchant-scoped queries
+  join `invoices(merchant_id)` and sort by `payments.id`. That takes well under a
+  millisecond on devnet data; at tens of thousands of payments per merchant (rough
+  trigger: ~50,000) add a denormalized `payments.merchant_id`, filled from the invoice by
+  a trigger and backfilled, with an index on `(merchant_id, id DESC)` (decision D5,
+  2026-10-04).

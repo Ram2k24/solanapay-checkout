@@ -183,6 +183,22 @@ Sessions last 8 hours (absolute).
   shows it in groups of four with a "checked every character" confirmation. Existing
   invoices keep their recipient (immutable terms).
 
+## Transaction history (Phase 12)
+
+- **Read-only, merchant-scoped.** Lists, search, detail pages and the export all filter
+  by the session's merchant through the invoice, never by payout wallet or by ids in the
+  URL: another merchant's payment id is "not found" (tested, including two merchants
+  sharing a payout wallet, and a page cursor taken from another merchant's payment).
+- **Exact search only:** a full base58 signature or an `INV-YYYY-NNNNN` number; anything
+  else is rejected, never turned into a pattern or SQL.
+- **CSV export** (`GET /api/payments/export`): merchant session, 10/min, validated
+  filter and search (invalid → 400), at most 10,000 rows (newest first; truncation is
+  reported in `X-Export-Truncated`), `attachment`, `no-store`. **Formula-injection safe:**
+  every cell is quoted, and cells starting with `= + - @`, tab or CR get a leading `'`,
+  so merchant-supplied text such as an order ID `=HYPERLINK(...)` opens as text
+  (mutation-tested). No Origin check: a cross-site link can only make the merchant
+  download their own file, which the other site can't read.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes

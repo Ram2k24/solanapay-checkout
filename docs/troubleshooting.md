@@ -72,6 +72,11 @@ Re-run `npm run db:test:setup` to migrate the test database.
 **`Refusing: the test database name must end in _test`**
 Safety check: tests empty every table, so they refuse to run against other databases.
 
+**A rate-limit test fails once with `expected 200 to be 429`**
+Fixed-window limits count per clock minute; a test whose requests straddle a minute
+boundary sees a fresh window. Rate-limit tests call `freezeClockMidMinute()`
+(`tests/support/clock.ts`); add it to any new fixed-window limit test.
+
 ## Wallet
 
 **"No compatible Solana wallet found"**
@@ -224,3 +229,23 @@ The new address equals the current one; nothing to change.
 
 **"This wallet request expired or was already used" after approving a payout change**
 The confirmation is valid for 5 minutes and can be used once. Start the change again.
+
+## Transaction history (Phase 12)
+
+**No "Older transactions →" link**
+All matching payments fit on one page (20).
+
+**"Enter a full transaction signature or an invoice number"**
+Search is exact only: paste the whole signature, or type the full `INV-YYYY-NNNNN`.
+
+**No "Download CSV" link**
+The current view is empty (for example the Late tab); there is nothing to export.
+
+**The CSV shows `1` instead of `1.00` in a spreadsheet**
+The file contains `1.00`; the spreadsheet displays it as a number. `amount_base_units`
+holds the exact integer.
+
+**`npm start` fails with `EADDRINUSE` after a rebuild**
+The previous server is still running (or was suspended with Ctrl+Z). Find it with
+`ss -ltnp 'sport = :3000'`, stop it (Ctrl+C in its tab, or `kill <pid>`; a suspended one
+needs `kill -CONT <pid>` first), then `npm start`. Stop the server before rebuilding.
