@@ -32,10 +32,15 @@ while (!stop.signal.aborted) {
     const response = await fetch(url, { method: "POST", headers: { authorization: `Bearer ${secret}` }, signal: AbortSignal.timeout(120_000) });
     const body = await response.json().catch(() => null);
     if (response.ok) {
-      const { claimed, checked, confirming, paid, expired, unmatched, budgetDeferred, rpcErrors, aborted, durationMs } = body;
+      const { claimed, checked, confirming, paid, expired, unmatched, budgetDeferred, rpcErrors, aborted, durationMs, cleanup } = body;
+      const cleaned = cleanup?.error
+        ? " cleanup=FAILED"
+        : cleanup && cleanup.nonces + cleanup.sessions + cleanup.rateLimits > 0
+          ? ` cleaned=${cleanup.nonces}n/${cleanup.sessions}s/${cleanup.rateLimits}r`
+          : "";
       console.log(
         `${time} claimed=${claimed} checked=${checked} confirming=${confirming} paid=${paid} expired=${expired} ` +
-          `unmatched=${unmatched} deferred=${budgetDeferred} rpcErrors=${rpcErrors}${aborted ? " ABORTED (wrong cluster)" : ""} ${durationMs}ms`,
+          `unmatched=${unmatched} deferred=${budgetDeferred} rpcErrors=${rpcErrors}${aborted ? " ABORTED (wrong cluster)" : ""} ${durationMs}ms${cleaned}`,
       );
     } else {
       console.log(`${time} HTTP ${response.status} ${body?.error?.code ?? ""}`);

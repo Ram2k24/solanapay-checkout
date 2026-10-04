@@ -225,10 +225,12 @@ describe("POST /api/internal/reconcile", () => {
     ["a prefix of the secret", `Bearer ${serverEnv.CRON_SECRET.slice(0, 32)}`],
   ])("rejects %s with 401 and runs nothing", async (_, authorization) => {
     await invoice();
+    const oldWindow = await db.rateLimit.create({ data: { key: "test:old", windowStart: new Date(Date.now() - 2 * 60 * 60_000), count: 1 } });
     const response = await call(authorization);
     expect(response.status).toBe(401);
     expect((await json(response)).error.code).toBe("InvalidCredentials");
     expect(getSignaturesForReference).not.toHaveBeenCalled();
+    expect(await db.rateLimit.count({ where: { key: oldWindow.key } })).toBe(1); // no cleanup either
   });
 
   it("runs the reconciler with the right secret", async () => {
@@ -236,5 +238,12 @@ describe("POST /api/internal/reconcile", () => {
     const response = await call(`Bearer ${serverEnv.CRON_SECRET}`);
     expect(response.status).toBe(200);
     expect(await json(response)).toMatchObject({ claimed: 1, checked: 1, aborted: false });
+  });
+
+  it("cleans up expired rows after the run (Phase 13)", async () => {
+    await db.rateLimit.create({ data: { key: "test:old", windowStart: new Date(Date.now() - 2 * 60 * 60_000), count: 1 } });
+    const response = await call(`Bearer ${serverEnv.CRON_SECRET}`);
+    expect((await json(response)).cleanup).toEqual({ nonces: 0, sessions: 0, rateLimits: 1 });
+    expect(await db.rateLimit.count({ where: { key: "test:old" } })).toBe(0);
   });
 });

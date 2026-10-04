@@ -348,5 +348,6 @@ model RateLimit {
   count       Int
 
   @@id([key, windowStart])
+  @@index([windowStart]) // expired-window cleanup (Phase 13)
   @@map("rate_limits")
 }
