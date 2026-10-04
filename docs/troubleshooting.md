@@ -249,3 +249,33 @@ holds the exact integer.
 The previous server is still running (or was suspended with Ctrl+Z). Find it with
 `ss -ltnp 'sport = :3000'`, stop it (Ctrl+C in its tab, or `kill <pid>`; a suspended one
 needs `kill -CONT <pid>` first), then `npm start`. Stop the server before rebuilding.
+
+## Security hardening (Phase 13)
+
+**`permission denied for table …` after a new migration**
+The app runs as `solanapay_app`. New tables get SELECT, INSERT and UPDATE
+automatically; if the app must DELETE from a new table, add it to
+`scripts/db-app-role.sql` and run `npm run db:role`.
+
+**All `db-privileges` tests fail, everything else passes**
+The tests are connecting as the owner. Usually the shell has old values exported (for
+example after `set -a; . ./.env`): Node's `.env` loader never overrides variables that
+are already set. Open a new terminal (or `unset DATABASE_URL TEST_DATABASE_URL …`) and
+run the tests again.
+
+**`TEST_DATABASE_URL and TEST_MIGRATE_DATABASE_URL must be set`**
+Add `TEST_MIGRATE_DATABASE_URL` (the owner URL of the `_test` database) and point
+`TEST_DATABASE_URL` at `solanapay_app` (see `.env.example`), then `npm run db:role`.
+
+**"The Solana network could not be reached" when changing the payout wallet**
+The on-chain check fails closed when the RPC doesn't answer within 5 s (this sometimes
+happens with the first call after starting the server on public devnet). Try again.
+
+**"Your wallet signed with a different account"**
+The wallet app's active account isn't the one you signed in with. Switch accounts in
+the wallet, then disconnect and reconnect it in the header.
+
+**`EADDRINUSE: address already in use :::3000`**
+A previous server is still running or still shutting down. Stop it with Ctrl+C (not
+Ctrl+Z, which only suspends it) and start again.
+

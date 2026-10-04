@@ -199,6 +199,53 @@ Sessions last 8 hours (absolute).
   (mutation-tested). No Origin check: a cross-site link can only make the merchant
   download their own file, which the other site can't read.
 
+## Security hardening (Phase 13)
+
+- **Least-privilege database role** (decisions E1-E3). The app connects as
+  `solanapay_app` (`DATABASE_URL`): SELECT, INSERT and UPDATE on its tables; DELETE only
+  on `auth_nonces`, `sessions` and `rate_limits` (the cleanup job); `audit_logs` is
+  insert-only; no access to `_prisma_migrations`; no DDL. So a SQL injection bug or a
+  leaked `DATABASE_URL` can't switch off the triggers that keep the audit log
+  append-only and payment evidence immutable, TRUNCATE or DROP anything. Migrations run
+  as the owner (`MIGRATE_DATABASE_URL`). The grants live in `scripts/db-app-role.sql`
+  (`npm run db:role`, idempotent; the password comes from `APP_DB_PASSWORD`, never from
+  the file). The whole test suite runs as this role; `tests/integration/db-privileges.test.ts`
+  and `npm run db:check` prove 9 forbidden operations fail with 42501 (mutation-tested).
+- **Security headers on every route** (`next.config.ts`, decision D4): a baseline
+  Content-Security-Policy (`default-src 'self'`; scripts only from our origin; the
+  browser may connect only to us and the configured RPC origin; `frame-ancestors
+  'none'`, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`),
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, a Permissions-Policy that turns off
+  camera, microphone, geolocation, payment, USB and topics, and HSTS (two years) when
+  `NEXT_PUBLIC_APP_URL` is HTTPS. No `X-Powered-By`. Checked by unit tests and the smoke
+  test.
+- **Payout wallet rules** (decisions D5, D6), at onboarding and on every change:
+  - one merchant per payout wallet: a wallet that is another merchant's current default
+    is refused (a former one may be reused). Re-checked at confirmation under a
+    per-address advisory lock, so two merchants claiming one wallet at the same moment
+    can't both succeed (race test, mutation-tested);
+  - on-chain check: the address must be either not on-chain yet or a plain System
+    account without data. Programs (including on-curve program IDs the format check
+    can't catch), token, stake and nonce accounts are refused. **Fails closed:** if the
+    RPC can't be reached the answer is 503 `RpcUnavailable`, never "accepted unchecked".
+    The signed-in wallet itself isn't looked up (its sign-in signature proves it's a
+    wallet), and the check isn't repeated at confirmation (an empty System account can
+    only become something else with its own key's signature).
+- **Different-account check** (payout change page): wallet apps can sign with their
+  active account while the page believes another is connected. The page verifies the
+  signature against the signed-in wallet before sending it and explains what to do; if
+  the browser can't verify, it sends anyway. Usability only: the server still verifies.
+- **Sessions:** a payout wallet change signs out all the merchant's other sessions
+  (decision D8; the count is shown and audited).
+- **Cleanup** after each reconciler run (decisions D1, D2): wallet challenges 1 day
+  after expiry, sessions 7 days after expiry or sign-out (they hold IP and user agent),
+  rate-limit windows after 1 hour; in batches of 1000, at most 5 per table per run.
+  Invoices, payments, unmatched entries, wallets and the audit log are kept.
+- **Client IP:** `clientIp()` accepts only a valid IP address and is used everywhere,
+  including the public checkout page.
+- **Onboarding** is rate-limited (10/min per user), since each attempt may query the RPC.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -212,25 +259,17 @@ from `src/lib/http/api.ts` (`InvalidRequest`, `Unauthenticated`, `InvalidSignatu
 ## Database-level protections
 
 See [database.md](database.md): unique signatures and references, positive amounts,
-state-consistency CHECKs, and an append-only audit log.
+state-consistency CHECKs, immutable payment evidence and invoice terms, and an
+append-only audit log, all enforced against an app role that can't switch them off.
 
 ## Known gaps (tracked)
 
 - **Client IP** comes from the first `X-Forwarded-For` entry. That is only
   trustworthy behind a proxy that overwrites the header (e.g. Vercel). Revisit for
-  other hosting. `clientIp()` accepts only a valid IP address (anything else counts as
-  "unknown"), so a forged oversized header can't overflow the rate-limit key or mint
-  fresh keys. The `/pay/[id]` page still parses the header inline without that check
-  (an oversized header causes an error page): planned, Phase 13.
-- **TRUNCATE** on `audit_logs` is not blocked by the trigger. Fix: run the app with
-  a least-privilege database role without TRUNCATE (planned, Phase 13).
-- **Cleanup** of expired nonces, sessions and rate-limit rows: not done in Phase 10
-  (the reconciler endpoint is the natural place). Planned, Phase 13. The `rate_limits`
-  table now also holds the per-invoice and budget windows, so it grows faster.
-- **Security headers** (CSP, HSTS, …) (planned, Phase 13).
-- **Other sessions stay signed in after a payout wallet change** (decision D8): revoking
-  them is planned with the other session hardening (Phase 13). Unused, expired wallet
-  challenges are removed with the cleanup job (same item as above).
+  other hosting.
+- **CSP keeps `'unsafe-inline'` for scripts** because Next.js inlines its bootstrap
+  scripts. A nonce-based policy is on the Phase 17 roadmap. Everything else in the
+  policy is strict (no external script hosts, no eval in production, no framing).
 - **Public checkout rate limit returns HTTP 200:** after 60 views/min per IP the
   page shows "Too many requests", but Next.js pages can't set a 429 status. The
   limit is enforced; the payment-status API returns a proper 429 with `Retry-After`.
@@ -239,13 +278,17 @@ state-consistency CHECKs, and an append-only audit log.
   HTTPS (Phase 7b, verified with Phantom Android); payments without a reference go to
   the Unmatched payments review list (Phase 9). The in-browser payment (Phase 8) always
   carries the reference, also over plain HTTP.
-- **Payout wallet program check:** the denylist covers well-known programs and USDC
-  mints; checking via RPC that no program is deployed at the address is planned
-  (Phase 13).
-- **One payout wallet, several merchants:** a wallet can be the payout address of more
-  than one merchant profile (seen in testing after signing in with the wrong account).
-  Payments with a reference are matched correctly; payments without one, and the "USDC
-  received" totals, can't be told apart. Whether to forbid this: open question, Phase 13.
-- **Public RPC endpoints rate-limit bursts:** on devnet the public endpoint returned
-  HTTP 429 to a burst our own budget allowed (absorbed by the backoff). Production must
-  use a dedicated RPC provider (Phase 15).
+- **Public RPC endpoints rate-limit bursts and sometimes stall:** on devnet the public
+  endpoint returned HTTP 429 to a burst our own budget allowed (absorbed by the
+  backoff), and the first call after a server start sometimes exceeds the 5 s timeout
+  (the request fails safe and the next one works). Production must use a dedicated RPC
+  provider (Phase 15).
+- **Payout wallets shared before Phase 13** are not changed retroactively; the rule
+  applies from the next change. (No such data in a fresh deployment.)
+
+## Dependency audit (Phase 13, decision D7)
+
+`npm audit --omit=dev` (production dependencies) on 2026-10-04: **0 vulnerabilities.**
+Report-only: findings are judged one by one and never fixed with `npm audit fix`
+(which can upgrade across major versions). Re-run before each deployment (Phase 15).
+

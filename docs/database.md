@@ -123,12 +123,30 @@ there is no drift between schema and database.
 | `npm run db:migrate` | Development: create and apply a migration (`prisma migrate dev`) |
 | `npm run db:deploy` | Production/CI: apply pending migrations only (`prisma migrate deploy`) |
 | `npm run db:status` | Show applied/pending migrations |
-| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 48 checks, rolled back |
-| `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` |
+| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 57 checks (48 data rules, 9 app-role denials), rolled back |
+| `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` (as the owner) |
+| `npm run db:role` | Create or update the app role `solanapay_app` and its grants in the dev and test databases (idempotent) |
 | `npx prisma studio` | Browse data in a local web UI |
 
 To add a change: edit `prisma/schema.prisma` → `npx prisma migrate dev --name <change>`
 (add `--create-only` first if hand-written SQL is needed).
+
+## Roles (Phase 13.5)
+
+| Role | Connection | Can |
+|---|---|---|
+| owner (Docker `POSTGRES_USER`, or the provider's admin role) | `MIGRATE_DATABASE_URL`, `TEST_MIGRATE_DATABASE_URL` | everything: migrations (`prisma.config.ts`), test resets (TRUNCATE) |
+| `solanapay_app` | `DATABASE_URL`, `TEST_DATABASE_URL` | SELECT, INSERT, UPDATE on app tables; DELETE only on `auth_nonces`, `sessions`, `rate_limits`; INSERT-only on `audit_logs`; nothing on `_prisma_migrations`; no DDL |
+
+Grants are in `scripts/db-app-role.sql`; it resets them on every run (anything granted
+by hand is removed). Tables created by later migrations get SELECT, INSERT and UPDATE
+automatically (default privileges for the owner); a table the app must DELETE from
+needs a line in the script and a re-run of `npm run db:role`.
+
+Setting up a new environment: create the owner URL, run migrations, then run the script
+once as the owner with `APP_DB_PASSWORD` set (hosted:
+`psql "$MIGRATE_DATABASE_URL" -f scripts/db-app-role.sql`) and point `DATABASE_URL` at
+`solanapay_app`.
 
 ## Connection
 

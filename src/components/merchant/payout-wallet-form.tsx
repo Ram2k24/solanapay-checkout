@@ -15,7 +15,7 @@ const input = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 fo
 
 type Step =
   | { name: "view" }
-  | { name: "enter" }
+  | { name: "enter"; address?: string } // address: the one just refused, kept for correcting
   | { name: "confirm"; address: string } // the merchant checks the full address
   | { name: "signing"; address: string }
   | { name: "done"; address: string; otherSessionsRevoked: number };
@@ -72,7 +72,7 @@ export function PayoutWalletForm({ current, signedInWallet }: { current: string;
     } catch (e) {
       if (e instanceof ApiRequestError && e.fields.payoutWallet) {
         setFieldError(e.fields.payoutWallet);
-        setStep({ name: "enter" });
+        setStep({ name: "enter", address });
         return;
       }
       setError(e instanceof ApiRequestError ? e.message : describeWalletError(e));
@@ -98,7 +98,7 @@ export function PayoutWalletForm({ current, signedInWallet }: { current: string;
         <form onSubmit={onContinue} className="space-y-3" noValidate>
           <label className="block font-medium">
             New payout wallet
-            <input name="payoutWallet" className={input} spellCheck={false} autoComplete="off" />
+            <input name="payoutWallet" defaultValue={step.address} className={input} spellCheck={false} autoComplete="off" />
             {fieldError && <span className="mt-1 block font-normal text-red-700">{fieldError}</span>}
           </label>
           <div className="flex gap-2">

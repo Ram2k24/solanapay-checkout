@@ -254,3 +254,21 @@ detail page matched Solana Explorer field for field (signature, fee payer `BdSt�
 507244096, finalized, 04:39:04 UTC); the CSV had 19 rows totalling 20 USDC (matching the
 dashboard), old phone-QR and new browser payments together, none of the other merchant's.
 A spreadsheet shows `1.00` as `1` (number format); the file holds `1.00`.
+
+## 12. Security hardening (Phase 13)
+
+1. **Headers:** `curl -sI http://localhost:3000/ | grep -iE "content-security-policy|x-frame-options|x-content-type|referrer-policy|permissions-policy|x-powered-by"`
+   shows five headers and no `X-Powered-By`. Browse sign-in, pay, dashboard and export:
+   the console shows no "violates the Content Security Policy".
+2. **App role:** `npm run db:check` ends with all checks PASS, including the
+   `app role: cannot …` lines.
+3. **Program as payout wallet:** Settings → Change payout wallet →
+   `TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb` (the Token-2022 program) → "This
+   address is a program, not a wallet."; the wallet app never opens.
+4. **Another merchant's wallet:** with two merchants, enter the other merchant's
+   current payout wallet → "already another merchant's payout wallet".
+5. **Different account:** signed in as A, switch the wallet app to account B without
+   reconnecting, approve a change → "Your wallet signed with a different account";
+   nothing changes.
+6. **Other sessions:** signed in on two browsers, change the payout wallet in one → the
+   page reports one other session signed out; the other browser is asked to sign in.
