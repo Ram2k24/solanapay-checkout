@@ -204,3 +204,23 @@ Shown when its simulation fails for another reason, typically not enough USDC.
 **The checkout reloads itself once right after a payment**
 Expected if the page didn't update within 5 s of the status changing (a refresh that
 didn't apply); the reload shows the server's current state.
+
+## Dashboard and settings (Phase 11)
+
+**The dashboard doesn't update**
+It refreshes every 30 s only while its tab is visible, and only on `/dashboard` and
+pending invoice pages (not the home page or the invoice list). Check the "Updated" time
+next to the heading, or click Refresh.
+
+**Network shows ~5 `_rsc` requests every 30 s**
+The refresh itself plus Next.js re-prefetching the navigation links. Expected.
+
+**"Connect the wallet you signed in with (…), then try again" when changing the payout wallet**
+Phantom is on a different account than the one you signed in with. Switch Phantom back
+(or reconnect), then approve. Only the signed-in wallet's signature is accepted.
+
+**"This is already your payout wallet."**
+The new address equals the current one; nothing to change.
+
+**"This wallet request expired or was already used" after approving a payout change**
+The confirmation is valid for 5 minutes and can be used once. Start the change again.

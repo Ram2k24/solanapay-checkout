@@ -212,3 +212,27 @@ code:
   holds for 2 minutes.
 - **The wrong Phantom account signed in to the dashboard** created a second merchant;
   the onboarding page now shows which wallet is signed in.
+
+## 10. Dashboard and settings (Phase 11)
+
+Signed in as the merchant, production build (`npm run build && npm start`).
+
+| # | Action | Expected |
+|---|---|---|
+| 1 | Open `/dashboard`, wait 35 s without clicking | "Updated HH:MM:SS" moves by ~30 s; one `dashboard?_rsc` request (Network) |
+| 2 | Switch to another tab for a minute, come back | No requests while hidden; one at once on return |
+| 3 | Pay a new invoice from another window (browser wallet, §9) | Within ≤ 30 s, without reloading: USDC received and Paid go up, the payment tops Recent payments |
+| 4 | Leave a pending invoice's page open while it's paid | It switches to Paid on its own; its "Updated" line disappears |
+| 5 | Settings → Profile: change the email, Save | "Saved"; audit `merchant.updated` with old and new values |
+| 6 | Settings → Change payout wallet → another of your addresses | The address in groups of four; Approve is disabled until the box is ticked; Phantom shows "confirm a payout wallet change", not a sign-in |
+| 7 | Approve | "Payout wallet changed"; audit `merchant.payout_wallet_changed`; new invoices pay the new wallet, old ones keep theirs |
+| 8 | Start another change, Cancel in Phantom | "You cancelled the request in your wallet."; nothing changes |
+| 9 | Change it back to your main wallet | As 7 |
+
+**Verified 2026-10-04** (live devnet, production build): dashboard figures matched the
+database exactly (18.00 USDC, 38 / 0 / 17 / 21, 2 unmatched; Recent payments INV-38…34);
+"Updated" moved 10:18:19 → 10:18:50 on its own; INV-2026-00039 and 00040 paid from `BdSt…`
+(recorded 5.6 s and 2.8 s after landing) appeared without reloads, and INV-40's invoice page
+switched to Paid by itself and stopped refreshing. Payout wallet changed 4dqH → JBLD → 4dqH
+with Phantom (two audited changes; one cancelled challenge left unused). After each refresh
+only the navigation links re-prefetch (row links have prefetch off).

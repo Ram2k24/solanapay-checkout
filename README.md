@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–10 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry).
+**Status:** early development. Phases 1–11 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry, merchant dashboard and settings).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -26,7 +26,12 @@ Implemented so far:
   description, expiry), list with status filters and pagination, detail page;
   per-merchant numbering `INV-YYYY-NNNNN`; idempotent creation; payment terms fixed
   by the server and immutable after creation (see [docs/payment-flow.md](docs/payment-flow.md))
-- Merchant dashboard with invoice counts and recent invoices
+- Merchant dashboard: USDC received (finalized only), Confirming (count and amount in
+  flight), total / pending / paid / expired invoices, unmatched to review, recent
+  payments with Explorer links, recent invoices; updates itself every 30 s while visible
+- Settings: business name and email; payout wallet change confirmed by a fresh
+  signature from the signed-in wallet (new invoices only, audited); network and
+  currency shown read-only
 - Solana Pay QR code for each invoice (spec-tested), and a public checkout page
   (`/pay/[id]`) with QR, "Open in wallet" and expired state
 - Solana Pay Transaction Requests (`/api/pay/[id]/transaction`): over HTTPS the QR asks
@@ -101,7 +106,7 @@ Schema and migrations are managed with Prisma 7. See [docs/database.md](docs/dat
 
     npm run db:deploy     # apply migrations
     npm run db:status     # check migration state
-    npm run db:check      # run the 46 database constraint checks (rolled back)
+    npm run db:check      # run the 48 database constraint checks (rolled back)
 
 ## Devnet Setup
 See [docs/devnet-testing.md](docs/devnet-testing.md): wallet setup, devnet SOL/USDC faucets,
@@ -111,7 +116,7 @@ and the manual test checklist.
 Tests use a separate database (`TEST_DATABASE_URL`, name must end in `_test`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 448 tests: auth, invoices, Solana Pay, transaction requests, in-browser payment, verification (real devnet fixtures), detection, expiry, concurrency
+    npm test                # 489 tests: auth, invoices, Solana Pay, transaction requests, in-browser payment, verification (real devnet fixtures), detection, expiry, concurrency, dashboard, settings
     npm run db:check        # database constraint tests
 
 Full E2E and blockchain test suites: Phase 14.

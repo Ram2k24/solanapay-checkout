@@ -28,7 +28,7 @@ erDiagram
 | `unmatched_payments` | Suspense: real incoming USDC that can't settle an invoice automatically (Phase 9) | `signature` UNIQUE; `amount > 0`; `reason` ↔ `invoice_id` / `reference` consistency; RESOLVED requires note + resolver + time, and is final; invoice must belong to the same merchant; evidence immutable, no DELETE (triggers) |
 | `invoice_checks` | When the reconciler next looks at an invoice (Phase 10) | PK `invoice_id` (one per invoice, created by trigger); `attempts >= 0`; cascade with invoice |
 | `audit_logs` | Security/money events | Append-only (UPDATE/DELETE blocked by trigger) |
-| `auth_nonces` | One-time sign-in challenges (Phase 4) | `nonce` UNIQUE; single use via `used_at`; 5-minute expiry |
+| `auth_nonces` | One-time wallet challenges: sign-in (Phase 4) and payout-wallet change (Phase 11) | `nonce` UNIQUE; single use via `used_at`; 5-minute expiry; `purpose` (`SIGN_IN`/`PAYOUT_CHANGE`); `new_payout_wallet` set exactly for `PAYOUT_CHANGE` (CHECK) |
 | `sessions` | Server-side sessions (Phase 4) | `token_hash` UNIQUE (HMAC of the cookie token); `revoked_at`; cascade with user |
 | `rate_limits` | Fixed-window request counters (Phase 4) | PK `(key, window_start)` |
 | `invoice_counters` | Per-merchant, per-year counters (Phase 6) | PK `(merchant_id, kind, year)`; `kind` = `INVOICE` (INV-YYYY-NNNNN) or `ORDER` (auto order IDs ORD-YYYY-NNNNN); `last_value > 0` |
@@ -85,6 +85,16 @@ further checks), `last_checked_at`, `attempts` (consecutive RPC failures, ≥ 0)
 `last_error`, `lease_until` (null = not claimed; a reconciler run's claim). See
 payment-flow.md §7 for the cadence.
 
+## Wallet challenges (Phase 11)
+
+`auth_nonces.purpose` says what a signed challenge authorizes. Sign-in consumes only
+`SIGN_IN` challenges; the payout-wallet change consumes only `PAYOUT_CHANGE` challenges
+issued to the signed-in wallet, and takes the new wallet from `new_payout_wallet`, never
+from the request. Migration `20261004090000_challenge_purpose` (existing rows default to
+`SIGN_IN`). Changing the payout wallet flips `wallets.is_default` in one transaction
+(the partial unique index keeps exactly one default); existing invoices keep their
+`recipient_wallet` (immutable terms).
+
 ## Invoice state machine (stored in `invoices.status`)
 
     DRAFT ──▶ PENDING ──▶ CONFIRMING ──▶ PAID
@@ -113,7 +123,7 @@ there is no drift between schema and database.
 | `npm run db:migrate` | Development: create and apply a migration (`prisma migrate dev`) |
 | `npm run db:deploy` | Production/CI: apply pending migrations only (`prisma migrate deploy`) |
 | `npm run db:status` | Show applied/pending migrations |
-| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 46 checks, rolled back |
+| `npm run db:check` | Run `scripts/db-constraint-check.sql`: 48 checks, rolled back |
 | `npm run db:test:setup` | Create/migrate the `*_test` database used by `npm test` |
 | `npx prisma studio` | Browse data in a local web UI |
 

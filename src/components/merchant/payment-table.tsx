@@ -26,7 +26,7 @@ export function PaymentTable({ payments }: { payments: RecentPaymentDto[] }) {
                 <LocalTime iso={payment.blockTime ?? payment.verifiedAt} />
               </td>
               <td className="whitespace-nowrap px-4 py-3 font-mono">
-                <Link href={`/invoices/${payment.invoiceId}`} className="text-slate-900 underline-offset-2 hover:underline">
+                <Link prefetch={false} href={`/invoices/${payment.invoiceId}`} className="text-slate-900 underline-offset-2 hover:underline">
                   {payment.invoiceNumber}
                 </Link>
               </td>

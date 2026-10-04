@@ -160,6 +160,29 @@ Sessions last 8 hours (absolute).
   well-formed signature). Duplicates from other devices are caught by Phase 9.
 - The merchant's own payout wallet is refused as payer (`SelfPaymentNotAllowed`).
 
+## Merchant dashboard and settings (Phase 11)
+
+- **Dashboard figures come only from verified records**, scoped by the session's
+  merchant (never by payout wallet, which two merchants may share; tested). USDC received
+  counts FINALIZED payments only; unmatched money is never included. Payment rows show
+  public on-chain data, never the invoice reference key.
+- **Auto-refresh** re-renders the page from the database every 30 s while visible: no
+  new endpoint, no Solana calls.
+- **Profile** (`PATCH /api/merchant`): Origin check, merchant session, 20/min, strict
+  schema (name, email only; a `payoutWallet` field is rejected, not ignored), audited
+  with old and new values; the log records only which fields changed.
+- **Payout wallet change** needs, besides the session, a **fresh signature by the
+  signed-in wallet** (decision D5): `POST /api/merchant/payout-wallet/challenge` checks the
+  address (format, on-curve, denylist, not the current one) and stores a `PAYOUT_CHANGE`
+  challenge naming it; `POST /api/merchant/payout-wallet` consumes only a challenge of that
+  purpose issued to the session's wallet (so nobody can use up another's), verifies the
+  signature, re-checks the address, then switches the default under a row lock and
+  audits `{from, to}`. 10/min each. A stolen session cookie alone can't redirect future
+  payments. The signed text holds no user-written text (the business name could forge
+  lines). The new wallet doesn't sign (D7: exchange or multisig addresses can't); the UI
+  shows it in groups of four with a "checked every character" confirmation. Existing
+  invoices keep their recipient (immutable terms).
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -189,6 +212,9 @@ state-consistency CHECKs, and an append-only audit log.
   (the reconciler endpoint is the natural place). Planned, Phase 13. The `rate_limits`
   table now also holds the per-invoice and budget windows, so it grows faster.
 - **Security headers** (CSP, HSTS, …) (planned, Phase 13).
+- **Other sessions stay signed in after a payout wallet change** (decision D8): revoking
+  them is planned with the other session hardening (Phase 13). Unused, expired wallet
+  challenges are removed with the cleanup job (same item as above).
 - **Public checkout rate limit returns HTTP 200:** after 60 views/min per IP the
   page shows "Too many requests", but Next.js pages can't set a 429 status. The
   limit is enforced; the payment-status API returns a proper 429 with `Retry-After`.

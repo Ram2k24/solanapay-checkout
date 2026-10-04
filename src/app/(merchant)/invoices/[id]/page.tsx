@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { CopyButton } from "@/components/checkout/copy-button";
 import { PaymentQr } from "@/components/checkout/payment-qr";
+import { AutoRefresh } from "@/components/merchant/auto-refresh";
 import { CheckPaymentButton } from "@/components/merchant/check-payment-button";
 import { ExpiryCountdown } from "@/components/merchant/expiry-countdown";
 import { LocalTime } from "@/components/merchant/local-time";
@@ -41,6 +42,10 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   // Recorded only by backend verification (Phase 9); never from browser input.
   const payment = row.payment ? toPaymentDto(row.payment) : null;
   const unmatched = row.unmatchedPayments.map((u) => toUnmatchedPaymentDto(u));
+  // Keep the page current while the invoice can still change: payable, confirming, or
+  // shown as expired while the stored row is still PENDING (grace period: the reconciler
+  // checks the chain before expiring it, and a last-second payment may settle it).
+  const mayChange = row.status === "PENDING" || row.status === "CONFIRMING";
 
   const details: [string, React.ReactNode][] = [
     ["Order ID", invoice.orderId ?? "—"],
@@ -68,6 +73,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         <div className="flex flex-col items-end gap-2 text-sm">
           <StatusBadge status={invoice.effectiveStatus} />
           {invoice.effectiveStatus === "PENDING" && <ExpiryCountdown expiresAt={invoice.expiresAt} />}
+          {mayChange && <AutoRefresh renderedAt={new Date().toISOString()} />}
         </div>
       </div>
 

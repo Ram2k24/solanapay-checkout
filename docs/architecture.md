@@ -101,6 +101,11 @@ Sign-In With Solana with server-side sessions. See [security.md](security.md).
   `StatusWatcher` (one poller; refresh, or reload if a refresh doesn't apply). Browser
   payment logic is framework-free in `src/lib/wallet/` (`pay-readiness`,
   `request-transaction`, `pay-with-wallet`, `payment-attempts`) and unit-tested.
+- Merchant pages (Phase 11): the dashboard and pending invoice pages re-render every
+  30 s while visible (`AutoRefresh` + the framework-free `src/lib/merchant/auto-refresh.ts`);
+  a re-render reads only the database, never Solana. Table row links don't prefetch.
+- Settings: `ProfileForm` (PATCH `/api/merchant`) and `PayoutWalletForm` (challenge,
+  wallet signature, confirm; see security.md).
 
 ## Invoices
 

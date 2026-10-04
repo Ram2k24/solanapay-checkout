@@ -20,7 +20,7 @@ export function InvoiceTable({ invoices }: { invoices: InvoiceDto[] }) {
           {invoices.map((invoice) => (
             <tr key={invoice.id} className="hover:bg-slate-50">
               <td className="whitespace-nowrap px-4 py-3 font-mono">
-                <Link href={`/invoices/${invoice.id}`} className="text-slate-900 underline-offset-2 hover:underline">
+                <Link prefetch={false} href={`/invoices/${invoice.id}`} className="text-slate-900 underline-offset-2 hover:underline">
                   {invoice.invoiceNumber}
                 </Link>
               </td>
