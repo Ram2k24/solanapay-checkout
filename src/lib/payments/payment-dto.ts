@@ -1,6 +1,7 @@
 import type { Payment, UnmatchedPayment } from "@/generated/prisma/client";
 import { USDC_DECIMALS } from "@/lib/config/networks";
 import { formatUnits } from "@/lib/money/format";
+import { explorerTxUrl } from "@/lib/solana/explorer";
 
 // API/UI representations of recorded payments. bigint values are sent as strings.
 
@@ -20,6 +21,19 @@ export function toPaymentDto(payment: Payment) {
     late: payment.late,
     verifiedAt: payment.verifiedAt.toISOString(),
     finalizedAt: payment.finalizedAt?.toISOString() ?? null,
+  };
+}
+
+export type RecentPaymentDto = ReturnType<typeof toRecentPaymentDto>;
+
+// A payment row for the dashboard (and Phase 12's Transactions page): the payment plus
+// the invoice it settled and its Explorer link.
+export function toRecentPaymentDto(payment: Payment & { invoice: { id: string; invoiceNumber: string } }) {
+  return {
+    ...toPaymentDto(payment),
+    invoiceId: payment.invoice.id,
+    invoiceNumber: payment.invoice.invoiceNumber,
+    explorerUrl: explorerTxUrl(payment.signature, payment.network),
   };
 }
 

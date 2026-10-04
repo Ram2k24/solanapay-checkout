@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "@/lib/db/client";
 import { getInvoiceSummary, getPaymentTotals } from "@/lib/payments/invoice-summary";
 import { listRecentPayments } from "@/lib/payments/list-payments";
+import { toRecentPaymentDto } from "@/lib/payments/payment-dto";
 import { resetDatabase } from "../support/db";
 
 // Phase 11: the dashboard's figures, straight from the database. Two merchants share one
@@ -137,5 +138,25 @@ describe("listRecentPayments", () => {
     const m = await merchant(PAYER);
     await invoice(m.id, "PENDING");
     expect(await listRecentPayments(m.id, 5)).toEqual([]);
+  });
+});
+
+describe("toRecentPaymentDto", () => {
+  it("shows the payment, its invoice and a devnet Explorer link, never the invoice's reference key", async () => {
+    const m = await merchant(PAYER);
+    const inv = await invoice(m.id, "PAID", { amount: USDC(2) });
+    const recorded = await payment(inv, USDC(2), "FINALIZED", true);
+    const [row] = await listRecentPayments(m.id, 5);
+
+    const dto = toRecentPaymentDto(row!);
+
+    expect(dto).toMatchObject({
+      signature: recorded.signature, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, amountDisplay: "2.00",
+      senderWallet: PAYER, commitment: "FINALIZED", late: true,
+    });
+    const explorer = new URL(dto.explorerUrl); // base URL comes from the environment
+    expect(explorer.pathname).toBe(`/tx/${recorded.signature}`);
+    expect(explorer.searchParams.get("cluster")).toBe("devnet");
+    expect(JSON.stringify(dto)).not.toContain(inv.reference);
   });
 });
