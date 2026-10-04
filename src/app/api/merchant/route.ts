@@ -9,6 +9,7 @@ import { enforceRateLimit } from "@/lib/http/rate-limit";
 import { requireMerchant, requireSession } from "@/lib/merchant/require-merchant";
 import { payoutWalletProblem } from "@/lib/merchant/payout-wallet";
 import { lockPayoutAddress, sharedPayoutProblem } from "@/lib/merchant/shared-payout";
+import { onChainPayoutProblem } from "@/lib/merchant/payout-onchain";
 
 const nameSchema = z.string().trim().min(1, "Enter a business name.").max(120, "At most 120 characters.");
 const emailSchema = z.union([z.literal(""), z.email("Enter a valid email address.").max(254)]); // "" clears it
@@ -45,10 +46,15 @@ export const GET = route("merchant.get", async (request) => {
 export const POST = route("merchant.create", async (request, { log }) => {
   assertSameOrigin(request);
   const session = await requireSession(request);
+  await enforceRateLimit(`merchant:create:${session.userId}`, 10, 60); // each attempt may query the RPC
   const body = await parseJsonBody(request, bodySchema);
 
   const payoutWallet = body.payoutWallet || session.walletAddress;
-  const problem = payoutWalletProblem(payoutWallet);
+  // The signed-in wallet just proved it holds its key, so only another wallet is
+  // looked up on-chain.
+  const problem =
+    payoutWalletProblem(payoutWallet) ??
+    (payoutWallet === session.walletAddress ? null : await onChainPayoutProblem(payoutWallet));
   if (problem) throw new ApiError("InvalidRequest", { payoutWallet: problem });
 
   try {

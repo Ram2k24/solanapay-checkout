@@ -21,10 +21,25 @@ const NOT_A_WALLET = new Set<string>([
 // A payout wallet must be a normal wallet address (an Ed25519 public key "on the
 // curve"), and not a well-known program or token-mint address.
 // Program-derived addresses, such as token accounts, are off the curve and rejected.
-// (A full check that no program lives at the address needs an RPC lookup: Phase 13.)
+// What lives at the address on-chain is checked separately (payoutAccountProblem).
 export function payoutWalletProblem(address: string): string | null {
   if (!isAddress(address)) return "Not a valid Solana address.";
   if (isOffCurveAddress(address)) return "This is a program or token account address, not a wallet.";
   if (NOT_A_WALLET.has(address)) return "This is a system program or token address, not a wallet.";
+  return null;
+}
+
+// The on-chain account at a payout address (Phase 13, decision D6). A wallet is either
+// not on-chain yet (it has never held SOL) or a plain System account with no data.
+// Anything else, such as a program, a token account or a stake or nonce account, isn't
+// a wallet whose USDC token account the merchant could control.
+export type PayoutAccount = { owner: string; executable: boolean; space: bigint } | null;
+
+export function payoutAccountProblem(account: PayoutAccount): string | null {
+  if (account === null) return null;
+  if (account.executable) return "This address is a program, not a wallet.";
+  if (account.owner !== SYSTEM_PROGRAM_ADDRESS || account.space > 0n) {
+    return "This address is a token, stake or other program account, not a wallet.";
+  }
   return null;
 }

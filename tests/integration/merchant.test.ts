@@ -1,6 +1,6 @@
 import { findAssociatedTokenPda, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { address } from "@solana/kit";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET as getMerchant, PATCH as updateMerchant, POST as createMerchant } from "@/app/api/merchant/route";
 import { CIRCLE_USDC_MINT } from "@/lib/config/networks";
 import { db } from "@/lib/db/client";
@@ -8,8 +8,16 @@ import { resetDatabase } from "../support/db";
 import { apiRequest, json, signInNewWallet, signInWith } from "../support/http";
 import { createTestWallet } from "../support/wallet";
 import { freezeClockMidMinute } from "../support/clock";
+import { getAccountSummary } from "@/lib/solana/server-rpc";
 
-beforeEach(resetDatabase);
+// The on-chain payout check (Phase 13, D6) without a network: by default every new
+// address is a wallet that isn't on-chain yet.
+vi.mock("@/lib/solana/server-rpc", () => ({ assertExpectedCluster: vi.fn(), getAccountSummary: vi.fn() }));
+
+beforeEach(async () => {
+  await resetDatabase();
+  vi.mocked(getAccountSummary).mockReset().mockResolvedValue(null);
+});
 
 describe("merchant onboarding", () => {
   it("requires sign-in", async () => {
@@ -68,6 +76,46 @@ describe("merchant onboarding", () => {
     expect(asDefault.status).toBe(400);
     expect((await json(asDefault)).error.fields.payoutWallet).toMatch(/another merchant's payout wallet/);
     expect(await db.merchant.count()).toBe(2);
+  });
+
+  it("looks up a chosen payout wallet on-chain and refuses a program or token account", async () => {
+    const { cookie } = await signInNewWallet();
+    const payout = await createTestWallet();
+    vi.mocked(getAccountSummary).mockResolvedValue({ owner: TOKEN_PROGRAM_ADDRESS, executable: false, space: 165n });
+
+    const response = await createMerchant(apiRequest("/api/merchant", { cookie, body: { name: "Shop", payoutWallet: payout.address } }));
+
+    expect(response.status).toBe(400);
+    expect((await json(response)).error.fields.payoutWallet).toMatch(/not a wallet/);
+    expect(getAccountSummary).toHaveBeenCalledWith(payout.address);
+    expect(await db.merchant.count()).toBe(0);
+  });
+
+  it("refuses, rather than skips, the on-chain check when the network is down", async () => {
+    const { cookie } = await signInNewWallet();
+    vi.mocked(getAccountSummary).mockRejectedValue(new Error("fetch failed"));
+
+    const response = await createMerchant(apiRequest("/api/merchant", { cookie, body: { name: "Shop", payoutWallet: (await createTestWallet()).address } }));
+
+    expect(response.status).toBe(503);
+    expect((await json(response)).error.code).toBe("RpcUnavailable");
+    expect(await db.merchant.count()).toBe(0);
+  });
+
+  it("doesn't look up the signed-in wallet: its signature already proved it is a wallet", async () => {
+    const { cookie } = await signInNewWallet();
+    vi.mocked(getAccountSummary).mockRejectedValue(new Error("fetch failed"));
+    expect((await createMerchant(apiRequest("/api/merchant", { cookie, body: { name: "Shop" } }))).status).toBe(201);
+    expect(getAccountSummary).not.toHaveBeenCalled();
+  });
+
+  it("limits onboarding attempts to 10 per minute per user", async () => {
+    freezeClockMidMinute();
+    const { cookie } = await signInNewWallet();
+    for (let i = 0; i < 10; i++) {
+      expect((await createMerchant(apiRequest("/api/merchant", { cookie, body: { name: "" } }))).status).toBe(400);
+    }
+    expect((await createMerchant(apiRequest("/api/merchant", { cookie, body: { name: "Shop" } }))).status).toBe(429);
   });
 
   it("allows only one profile per user", async () => {

@@ -1,5 +1,5 @@
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as nonce } from "@/app/api/auth/nonce/route";
 import { POST as verify } from "@/app/api/auth/verify/route";
 import { GET as getMerchant, POST as createMerchant } from "@/app/api/merchant/route";
@@ -11,10 +11,18 @@ import { resetDatabase } from "../support/db";
 import { apiRequest, json, sessionCookie, signInNewWallet } from "../support/http";
 import { createTestWallet } from "../support/wallet";
 import { freezeClockMidMinute } from "../support/clock";
+import { getAccountSummary } from "@/lib/solana/server-rpc";
+
+// The on-chain payout check (Phase 13, D6) without a network: by default every new
+// address is a wallet that isn't on-chain yet.
+vi.mock("@/lib/solana/server-rpc", () => ({ assertExpectedCluster: vi.fn(), getAccountSummary: vi.fn() }));
 
 // Phase 11.4c: changing the payout wallet needs the signed-in wallet's signature over a
 // payout-change challenge naming the new wallet (decision D5).
-beforeEach(resetDatabase);
+beforeEach(async () => {
+  await resetDatabase();
+  vi.mocked(getAccountSummary).mockReset().mockResolvedValue(null);
+});
 
 type Session = Awaited<ReturnType<typeof signInNewWallet>>;
 
@@ -244,5 +252,40 @@ describe("one merchant per payout wallet (Phase 13, decision D5)", () => {
 
     expect(responses.map((r) => r.status).sort()).toEqual([200, 400]);
     expect(await db.wallet.count({ where: { address: target.address, isDefault: true } })).toBe(1);
+  });
+});
+
+describe("on-chain check of the new wallet (Phase 13, decision D6)", () => {
+  it("refuses a program or token account before any challenge exists", async () => {
+    const session = await merchant();
+    const target = await createTestWallet();
+    vi.mocked(getAccountSummary).mockResolvedValue({ owner: "11111111111111111111111111111111", executable: false, space: 80n });
+
+    const response = await challengeFor(session.cookie, target.address);
+
+    expect(response.status).toBe(400);
+    expect((await json(response)).error.fields.payoutWallet).toMatch(/not a wallet/);
+    expect(getAccountSummary).toHaveBeenCalledWith(target.address);
+    expect(await db.authNonce.count({ where: { purpose: "PAYOUT_CHANGE" } })).toBe(0);
+  });
+
+  it("fails closed: no challenge while the network is down", async () => {
+    const session = await merchant();
+    vi.mocked(getAccountSummary).mockRejectedValue(new Error("fetch failed"));
+
+    const response = await challengeFor(session.cookie, (await createTestWallet()).address);
+
+    expect(response.status).toBe(503);
+    expect((await json(response)).error.code).toBe("RpcUnavailable");
+    expect(await db.authNonce.count({ where: { purpose: "PAYOUT_CHANGE" } })).toBe(0);
+  });
+
+  it("doesn't look up the signed-in wallet when switching back to it", async () => {
+    const session = await merchant();
+    await changeTo(session, (await createTestWallet()).address);
+    vi.mocked(getAccountSummary).mockClear().mockRejectedValue(new Error("fetch failed"));
+
+    expect((await changeTo(session, session.wallet.address)).status).toBe(200);
+    expect(getAccountSummary).not.toHaveBeenCalled();
   });
 });

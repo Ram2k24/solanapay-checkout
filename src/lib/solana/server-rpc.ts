@@ -66,3 +66,13 @@ export async function getSignatureStatus(signature: string) {
     .send(timeout());
   return value[0] ?? null;
 }
+
+// What kind of account lives at an address: its owner program, whether it is a program,
+// and how many bytes of data it holds. null: no account (a wallet that holds no SOL yet).
+// dataSlice length 0: we never download the data itself (programs can be megabytes).
+export async function getAccountSummary(account: string) {
+  const { value } = await rpc
+    .getAccountInfo(address(account), { encoding: "base64", commitment: "confirmed", dataSlice: { offset: 0, length: 0 } })
+    .send(timeout());
+  return value && { owner: value.owner as string, executable: value.executable, space: value.space };
+}

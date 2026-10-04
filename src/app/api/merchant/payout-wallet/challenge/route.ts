@@ -8,6 +8,7 @@ import { assertSameOrigin } from "@/lib/http/request";
 import { route } from "@/lib/http/route";
 import { payoutWalletProblem } from "@/lib/merchant/payout-wallet";
 import { sharedPayoutProblem } from "@/lib/merchant/shared-payout";
+import { onChainPayoutProblem } from "@/lib/merchant/payout-onchain";
 import { requireMerchant } from "@/lib/merchant/require-merchant";
 
 // Step 1 of changing the payout wallet (Phase 11.4c, decision D5): validates the new
@@ -23,7 +24,8 @@ export const POST = route("merchant.payout_wallet.challenge", async (request) =>
   const problem =
     payoutWalletProblem(payoutWallet) ??
     (payoutWallet === current ? "This is already your payout wallet." : null) ??
-    (await sharedPayoutProblem(db, payoutWallet, session.userId)); // re-checked, under a lock, on confirmation
+    (await sharedPayoutProblem(db, payoutWallet, session.userId)) ?? // re-checked, under a lock, on confirmation
+    (payoutWallet === session.walletAddress ? null : await onChainPayoutProblem(payoutWallet));
   if (problem) throw new ApiError("InvalidRequest", { payoutWallet: problem });
 
   return NextResponse.json(await issuePayoutChangeChallenge(session.walletAddress, payoutWallet));
