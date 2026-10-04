@@ -20,3 +20,23 @@ describe("clientIp", () => {
     expect(clientIp(headers(value))).toBe("unknown");
   });
 });
+
+describe("clientIp with Next.js page headers", () => {
+  // Shaped like the adapter Next.js's headers() returns: get(), plus an internal
+  // `headers` field holding the raw headers (which has no get()).
+  class PageHeaders {
+    readonly headers: Record<string, string>;
+    constructor(raw: Record<string, string>) {
+      this.headers = raw;
+    }
+    get(name: string): string | null {
+      return this.headers[name.toLowerCase()] ?? null;
+    }
+  }
+
+  it("reads through get(), not the internal field", () => {
+    expect(clientIp(new PageHeaders({ "x-forwarded-for": "203.0.113.9" }))).toBe("203.0.113.9");
+    expect(clientIp(new PageHeaders({ "x-forwarded-for": "x".repeat(10_000) }))).toBe("unknown");
+    expect(clientIp(new PageHeaders({}))).toBe("unknown");
+  });
+});

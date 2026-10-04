@@ -18,8 +18,10 @@ export function assertSameOrigin(request: Request): void {
 // Anything that isn't an IP address (e.g. a forged, oversized header) counts as
 // "unknown", so it can't overflow the rate-limit key column or mint fresh keys.
 // Takes a request (route handlers) or its headers (server pages, via headers()).
+// Told apart by type, not by property: the object Next.js's headers() returns has an
+// internal `headers` field of its own (a "headers" in ... check broke /pay, Phase 13.3).
 export function clientIp(source: Request | { get(name: string): string | null }): string {
-  const headers = "headers" in source ? source.headers : source;
+  const headers = source instanceof Request ? source.headers : source;
   const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   return isIP(forwarded) ? forwarded : "unknown";
 }
