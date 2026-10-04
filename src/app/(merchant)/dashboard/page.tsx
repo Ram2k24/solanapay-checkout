@@ -65,7 +65,10 @@ export default async function DashboardPage() {
         <Link href="/payments/unmatched" className="underline">Unmatched payments</Link> until you resolve them.
       </p>
 
-      <h2 className="mt-8 font-medium">Recent payments</h2>
+      <div className="mt-8 flex items-center justify-between">
+        <h2 className="font-medium">Recent payments</h2>
+        <Link href="/transactions" className="text-sm underline">View all</Link>
+      </div>
       <div className="mt-3">
         {recentPayments.length ? (
           <PaymentTable payments={recentPayments.map((p) => toRecentPaymentDto(p))} />
