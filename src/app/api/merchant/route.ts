@@ -5,14 +5,24 @@ import { db } from "@/lib/db/client";
 import { ApiError, parseJsonBody } from "@/lib/http/api";
 import { assertSameOrigin } from "@/lib/http/request";
 import { route } from "@/lib/http/route";
-import { requireSession } from "@/lib/merchant/require-merchant";
+import { enforceRateLimit } from "@/lib/http/rate-limit";
+import { requireMerchant, requireSession } from "@/lib/merchant/require-merchant";
 import { payoutWalletProblem } from "@/lib/merchant/payout-wallet";
 
+const nameSchema = z.string().trim().min(1, "Enter a business name.").max(120, "At most 120 characters.");
+const emailSchema = z.union([z.literal(""), z.email("Enter a valid email address.").max(254)]); // "" clears it
+
 const bodySchema = z.strictObject({
-  name: z.string().trim().min(1, "Enter a business name.").max(120, "At most 120 characters."),
-  email: z.union([z.literal(""), z.email("Enter a valid email address.").max(254)]).optional(),
+  name: nameSchema,
+  email: emailSchema.optional(),
   payoutWallet: z.string().trim().optional(), // defaults to the signed-in wallet
 });
+
+// Settings (Phase 11.4b): name and email only. The payout wallet is not accepted here
+// (strict schema): changing it needs a fresh wallet signature (/api/merchant/payout-wallet).
+const updateSchema = z
+  .strictObject({ name: nameSchema.optional(), email: emailSchema.optional() })
+  .refine((body) => body.name !== undefined || body.email !== undefined, "Nothing to update.");
 
 function toDto(merchant: { id: string; name: string; email: string | null; defaultCurrency: string }, payoutWallet: string) {
   return { id: merchant.id, name: merchant.name, email: merchant.email, defaultCurrency: merchant.defaultCurrency, payoutWallet };
@@ -60,4 +70,31 @@ export const POST = route("merchant.create", async (request, { log }) => {
     }
     throw error;
   }
+});
+
+// Updates the business name and/or email. Only real changes are written and audited
+// (old and new values); an unchanged submission returns the profile as it is.
+export const PATCH = route("merchant.update", async (request, { log }) => {
+  assertSameOrigin(request);
+  const { session, merchant, payoutWallet } = await requireMerchant(request);
+  await enforceRateLimit(`merchant:update:${merchant.id}`, 20, 60);
+  const body = await parseJsonBody(request, updateSchema);
+
+  const next = { name: body.name ?? merchant.name, email: body.email === undefined ? merchant.email : body.email || null };
+  const changes = Object.fromEntries(
+    (["name", "email"] as const)
+      .filter((field) => next[field] !== merchant[field])
+      .map((field) => [field, { from: merchant[field], to: next[field] }]),
+  );
+  if (Object.keys(changes).length === 0) return NextResponse.json(toDto(merchant, payoutWallet));
+
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.merchant.update({ where: { id: merchant.id }, data: next });
+    await tx.auditLog.create({
+      data: { actorType: "USER", actorId: session.userId, action: "merchant.updated", entityType: "merchant", entityId: merchant.id, data: changes },
+    });
+    return row;
+  });
+  log.info({ merchantId: merchant.id, fields: Object.keys(changes) }, "merchant updated");
+  return NextResponse.json(toDto(updated, payoutWallet));
 });
