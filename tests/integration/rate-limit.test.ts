@@ -6,6 +6,7 @@ import { consumeRateLimit, enforceRateLimit } from "@/lib/http/rate-limit";
 import { resetDatabase } from "../support/db";
 import { apiRequest } from "../support/http";
 import { createTestWallet } from "../support/wallet";
+import { freezeClockMidMinute } from "../support/clock";
 
 beforeEach(resetDatabase);
 
@@ -81,6 +82,7 @@ describe("Retry-After on HTTP 429", () => {
   });
 
   it("existing routes now send Retry-After with their 429", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const wallet = await createTestWallet();
     const request = () =>
       nonce(apiRequest("/api/auth/nonce", { body: { walletAddress: wallet.address }, headers: { "x-forwarded-for": "198.51.100.7" } }));

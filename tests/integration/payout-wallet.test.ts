@@ -9,6 +9,7 @@ import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
 import { apiRequest, json, signInNewWallet } from "../support/http";
 import { createTestWallet } from "../support/wallet";
+import { freezeClockMidMinute } from "../support/clock";
 
 // Phase 11.4c: changing the payout wallet needs the signed-in wallet's signature over a
 // payout-change challenge naming the new wallet (decision D5).
@@ -151,6 +152,7 @@ describe("refusals", () => {
   });
 
   it("limits challenges to 10 per minute per merchant", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const session = await merchant();
     const next = await createTestWallet();
     for (let i = 0; i < 10; i++) expect((await challengeFor(session.cookie, next.address)).status).toBe(200);

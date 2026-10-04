@@ -7,6 +7,7 @@ import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
 import { apiRequest, json, signInNewWallet } from "../support/http";
 import { createTestWallet } from "../support/wallet";
+import { freezeClockMidMinute } from "../support/clock";
 
 beforeEach(resetDatabase);
 
@@ -139,6 +140,7 @@ describe("merchant settings: PATCH /api/merchant", () => {
   });
 
   it("is rate-limited to 20 updates per minute per merchant", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const { cookie } = await merchantSession();
     for (let i = 0; i < 20; i++) expect((await patch(cookie, { name: `Shop ${i}` })).status).toBe(200);
     const limited = await patch(cookie, { name: "One too many" });

@@ -11,6 +11,7 @@ import {
 import referencePayment from "../fixtures/solana/reference-payment.json";
 import { resetDatabase } from "../support/db";
 import { apiRequest, json } from "../support/http";
+import { freezeClockMidMinute } from "../support/clock";
 
 // The chain is replaced by the real devnet fixture (INV-2026-00017's 1 USDC payment).
 vi.mock("@/lib/solana/server-rpc", async (importOriginal) => ({
@@ -94,6 +95,7 @@ describe("GET /api/pay/[id]/status: privacy and HTTP behaviour", () => {
   });
 
   it("allows 60 requests per minute per IP, then 429 with a calculated Retry-After", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const inv = await invoice({ status: "EXPIRED" });
     for (let i = 0; i < 60; i++) expect((await httpGet(inv.id, "203.0.113.60")).status).toBe(200);
     const limited = await httpGet(inv.id, "203.0.113.60");

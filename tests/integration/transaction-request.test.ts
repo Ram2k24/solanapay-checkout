@@ -8,6 +8,7 @@ import { getLatestBlockhash } from "@/lib/solana/server-rpc";
 import { resetDatabase } from "../support/db";
 import { apiRequest, APP, json, newMerchant } from "../support/http";
 import { createTestWallet } from "../support/wallet";
+import { freezeClockMidMinute } from "../support/clock";
 
 // The only network call (latest blockhash) is replaced, so these tests run offline.
 vi.mock("@/lib/solana/server-rpc", () => ({ getLatestBlockhash: vi.fn() }));
@@ -190,6 +191,7 @@ describe("POST /api/pay/[id]/transaction", () => {
 
 describe("rate limits (independent per IP and per invoice)", () => {
   it("allows 30 requests per minute per IP, across invoices", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const account = (await createTestWallet()).address;
     // Unknown invoices: each request uses a different invoice, so only the IP limit applies.
     for (let i = 0; i < 30; i++) {
@@ -202,6 +204,7 @@ describe("rate limits (independent per IP and per invoice)", () => {
   });
 
   it("allows 20 requests per minute per invoice, across IPs", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const { row, customer } = await setup();
     const other = await setup();
     for (let i = 0; i < 20; i++) {
@@ -212,6 +215,7 @@ describe("rate limits (independent per IP and per invoice)", () => {
   });
 
   it("doesn't count requests from a blocked IP against the invoice", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const { row, customer } = await setup();
     const ip = "203.0.113.9";
     for (let i = 0; i < 30; i++) await walletPost(crypto.randomUUID(), { account: customer }, ip);

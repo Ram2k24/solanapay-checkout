@@ -16,6 +16,7 @@ import referencePayment from "../fixtures/solana/reference-payment.json";
 import unknownReference from "../fixtures/solana/unknown-reference.json";
 import { resetDatabase } from "../support/db";
 import { apiRequest, json, newMerchant } from "../support/http";
+import { freezeClockMidMinute } from "../support/clock";
 
 // The chain is replaced by the real devnet fixtures; all three pay 1 USDC to MERCHANT_WALLET.
 vi.mock("@/lib/solana/server-rpc", () => ({
@@ -111,6 +112,7 @@ describe("POST /api/invoices/[id]/verify", () => {
   });
 
   it("is rate-limited to 10 checks per minute per invoice", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const { invoice, cookie } = await merchantWithInvoice();
     for (let i = 0; i < 10; i++) expect((await verifyCall(invoice.id, cookie)).status).toBe(200);
     expect((await verifyCall(invoice.id, cookie)).status).toBe(429);

@@ -9,6 +9,7 @@ import { SESSION_COOKIE } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
 import { createTestWallet } from "../support/wallet";
+import { freezeClockMidMinute } from "../support/clock";
 
 const APP = "http://localhost:3000";
 let ipCounter = 0;
@@ -167,6 +168,7 @@ describe("rejections", () => {
   });
 
   it("rate-limits challenge requests per IP (10 per minute)", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const wallet = await createTestWallet();
     const statuses: number[] = [];
     for (let i = 0; i < 11; i++) {

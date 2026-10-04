@@ -6,6 +6,7 @@ import { CIRCLE_USDC_MINT } from "@/lib/config/networks";
 import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
 import { apiRequest, json, newMerchant, signInNewWallet } from "../support/http";
+import { freezeClockMidMinute } from "../support/clock";
 
 beforeEach(resetDatabase);
 
@@ -126,6 +127,7 @@ describe("create invoice", () => {
   });
 
   it("rate-limits creation to 30 per minute per merchant", async () => {
+    freezeClockMidMinute(); // all requests in one fixed rate-limit window
     const { cookie } = await newMerchant();
     const statuses = [];
     for (let i = 0; i < 31; i++) statuses.push((await create(cookie, { amount: "1" })).status);
