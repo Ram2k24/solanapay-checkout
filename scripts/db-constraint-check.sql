@@ -199,6 +199,33 @@ SELECT pg_temp.expect_error('sign-in challenge naming a payout wallet is rejecte
   $q$INSERT INTO auth_nonces (id, nonce, wallet_address, message, expires_at, new_payout_wallet)
      VALUES (gen_random_uuid(), 'TestNonceB1', 'TestWa11etAddress1111111111111111111111111', 'm', now() + interval '5 minutes', 'TestWa11etAddress2222222222222222222222222')$q$, '23514');
 
+-- The app's role (Phase 13.5, scripts/db-app-role.sql) can't switch off the rules
+-- above, wipe or drop tables, or change the schema. Each statement runs as
+-- solanapay_app (SET LOCAL ROLE, undone with the block) and must fail with 42501.
+CREATE FUNCTION pg_temp.expect_denied(test text, stmt text) RETURNS void
+LANGUAGE plpgsql AS $$
+BEGIN
+  BEGIN
+    SET LOCAL ROLE solanapay_app;
+    EXECUTE stmt;
+    RAISE EXCEPTION USING ERRCODE = 'P0099', MESSAGE = 'statement succeeded'; -- undo it, then record FAIL
+  EXCEPTION WHEN OTHERS THEN
+    INSERT INTO results VALUES ('app role: ' || test,
+      CASE WHEN SQLSTATE = '42501' THEN 'PASS' ELSE 'FAIL (got ' || SQLSTATE || ': ' || SQLERRM || ')' END);
+  END;
+END;
+$$;
+
+SELECT pg_temp.expect_denied('cannot disable the payment triggers', 'ALTER TABLE payments DISABLE TRIGGER ALL');
+SELECT pg_temp.expect_denied('cannot truncate the audit log', 'TRUNCATE audit_logs');
+SELECT pg_temp.expect_denied('cannot update the audit log', 'UPDATE audit_logs SET action = action');
+SELECT pg_temp.expect_denied('cannot delete from the audit log', 'DELETE FROM audit_logs');
+SELECT pg_temp.expect_denied('cannot delete payments', 'DELETE FROM payments');
+SELECT pg_temp.expect_denied('cannot delete invoices', 'DELETE FROM invoices');
+SELECT pg_temp.expect_denied('cannot drop a table', 'DROP TABLE invoices');
+SELECT pg_temp.expect_denied('cannot create a table', 'CREATE TABLE intruder (id int)');
+SELECT pg_temp.expect_denied('cannot read the migration history', 'SELECT count(*) FROM _prisma_migrations');
+
 \pset footer off
 SELECT test, outcome FROM results;
 SELECT count(*) FILTER (WHERE outcome = 'PASS') AS passed, count(*) AS total FROM results;

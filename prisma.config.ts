@@ -12,8 +12,10 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
+    // Migrations run as the database owner (MIGRATE_DATABASE_URL); the app itself
+    // connects as the least-privilege role in DATABASE_URL (Phase 13.5, decision E2).
     // Plain process.env (not env()) so commands that don't need a database,
-    // like `prisma generate`, work without DATABASE_URL.
-    url: process.env.DATABASE_URL ?? "",
+    // like `prisma generate`, work without either.
+    url: process.env.MIGRATE_DATABASE_URL ?? process.env.DATABASE_URL ?? "",
   },
 });

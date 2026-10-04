@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # Creates the local test database (if it doesn't exist) and applies all migrations
-# to it. Safe to run repeatedly. Usage: npm run db:test:setup
+# to it as the owner (TEST_MIGRATE_DATABASE_URL). Safe to run repeatedly.
+# Usage: npm run db:test:setup   (then npm run db:role, once, for the app role's grants)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 set -a; . ./.env; set +a
-: "${TEST_DATABASE_URL:?TEST_DATABASE_URL is not set in .env (see .env.example)}"
+: "${TEST_MIGRATE_DATABASE_URL:?TEST_MIGRATE_DATABASE_URL is not set in .env (see .env.example)}"
 
-db_name=$(node -e 'console.log(new URL(process.argv[1]).pathname.slice(1))' "$TEST_DATABASE_URL")
+db_name=$(node -e 'console.log(new URL(process.argv[1]).pathname.slice(1))' "$TEST_MIGRATE_DATABASE_URL")
 if [[ ! "$db_name" =~ ^[a-z0-9_]+_test$ ]]; then
   echo "Refusing: the test database name must end in _test (got '$db_name')." >&2
   exit 1
@@ -19,4 +20,5 @@ SELECT 'CREATE DATABASE $db_name' WHERE NOT EXISTS (SELECT FROM pg_database WHER
 SQL
 echo "Test database '$db_name' is present."
 
-DATABASE_URL="$TEST_DATABASE_URL" npx prisma migrate deploy
+# Both set: prisma.config.ts prefers MIGRATE_DATABASE_URL, which in .env is the dev database.
+MIGRATE_DATABASE_URL="$TEST_MIGRATE_DATABASE_URL" DATABASE_URL="$TEST_MIGRATE_DATABASE_URL" npx prisma migrate deploy
