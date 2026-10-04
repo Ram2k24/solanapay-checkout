@@ -1,9 +1,8 @@
-import { getBase64Encoder } from "@solana/kit";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { consumeChallenge } from "@/lib/auth/challenge";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
-import { verifyWalletSignature } from "@/lib/auth/signature";
+import { decodeBase64Signature, verifyWalletSignature } from "@/lib/auth/signature";
 import { db } from "@/lib/db/client";
 import { ApiError, parseJsonBody } from "@/lib/http/api";
 import { enforceRateLimit } from "@/lib/http/rate-limit";
@@ -15,13 +14,6 @@ const bodySchema = z.object({
   signature: z.string().min(1).max(200), // base64-encoded 64-byte Ed25519 signature
 });
 
-function decodeBase64(value: string): Uint8Array | null {
-  try {
-    return new Uint8Array(getBase64Encoder().encode(value));
-  } catch {
-    return null;
-  }
-}
 
 // Step 2 of sign-in: verifies the wallet's signature and starts a session.
 export const POST = route("auth.verify", async (request, { log }) => {
@@ -34,7 +26,7 @@ export const POST = route("auth.verify", async (request, { log }) => {
   const challenge = await consumeChallenge(nonce, "SIGN_IN");
   if (!challenge) throw new ApiError("ChallengeExpired");
 
-  const signatureBytes = decodeBase64(signature);
+  const signatureBytes = decodeBase64Signature(signature);
   const valid =
     signatureBytes !== null &&
     (await verifyWalletSignature(challenge.walletAddress, new TextEncoder().encode(challenge.message), signatureBytes));
