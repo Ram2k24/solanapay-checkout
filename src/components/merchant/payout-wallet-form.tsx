@@ -9,6 +9,7 @@ import { ApiRequestError, postJson } from "@/lib/http/client";
 import { groupAddress, shortenAddress } from "@/lib/solana/address";
 import type { SolanaClient } from "@/lib/solana/client";
 import { describeWalletError } from "@/lib/wallet/errors";
+import { checkSigner } from "@/lib/wallet/signer-check";
 
 const input = "mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-sm focus:border-slate-900 focus:outline-none";
 
@@ -52,7 +53,16 @@ export function PayoutWalletForm({ current, signedInWallet }: { current: string;
     setStep({ name: "signing", address });
     try {
       const challenge = await postJson<{ nonce: string; message: string }>("/api/merchant/payout-wallet/challenge", { payoutWallet: address });
-      const signature = await signMessage.dispatchAsync(new TextEncoder().encode(challenge.message));
+      const message = new TextEncoder().encode(challenge.message);
+      const signature = await signMessage.dispatchAsync(message);
+      if ((await checkSigner(signedInWallet, message, signature)) === "other-account") {
+        setError(
+          `Your wallet signed with a different account, not ${shortenAddress(signedInWallet)}. Switch your wallet app to that ` +
+            "account, disconnect and reconnect it here, then try again. Nothing was changed.",
+        );
+        setStep({ name: "confirm", address });
+        return;
+      }
       const result = await postJson<{ otherSessionsRevoked: number }>("/api/merchant/payout-wallet", {
         nonce: challenge.nonce,
         signature: getBase64Decoder().decode(signature),

@@ -28,6 +28,14 @@ check() { # name, expected HTTP status, curl args...
 
 echo "Smoke test: $BASE"
 check "landing page"                        200 "$BASE/"
+# Security headers (Phase 13) on a page and an API route.
+for path in "/" "/api/health"; do
+  head=$(curl -s -D - -o /dev/null "$BASE$path" | tr -d '\r')
+  for h in "content-security-policy: default-src 'self'" "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin"; do
+    if grep -qiF "$h" <<<"$head"; then printf '  \033[32mPASS\033[0m  %-45s %s\n' "header on $path" "${h%%:*}"
+    else printf '  \033[31mFAIL\033[0m  %-45s missing %s\n' "header on $path" "${h%%:*}"; fail=1; fi
+  done
+done
 check "health (app + database)"             200 "$BASE/api/health"
 check "sign-in challenge, same origin"      200 -X POST "$BASE/api/auth/nonce" -H "origin: $ORIGIN" -H 'content-type: application/json' -d "{\"walletAddress\":\"$WALLET\"}"
 grep -q "Chain ID: $NEXT_PUBLIC_SOLANA_NETWORK" /tmp/smoke-body.$$ && echo "        message contains 'Chain ID: $NEXT_PUBLIC_SOLANA_NETWORK'" || { echo "        message missing chain ID"; fail=1; }
