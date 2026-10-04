@@ -38,3 +38,12 @@ export async function listPayments(
   const payments = hasMore ? rows.slice(0, opts.limit) : rows;
   return { payments, nextCursor: hasMore ? (payments.at(-1)?.id ?? null) : null };
 }
+
+// One payment for its detail page, or null if it doesn't exist or belongs to another
+// merchant (the page then shows "not found": ids in URLs are never trusted).
+export async function getPayment(merchantId: string, id: string) {
+  return db.payment.findFirst({
+    where: { id, invoice: { merchantId } },
+    include: { invoice: { select: { id: true, invoiceNumber: true, orderId: true } } },
+  });
+}

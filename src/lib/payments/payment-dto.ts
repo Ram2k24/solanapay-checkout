@@ -37,6 +37,21 @@ export function toRecentPaymentDto(payment: Payment & { invoice: { id: string; i
   };
 }
 
+export type PaymentDetailDto = ReturnType<typeof toPaymentDetailDto>;
+
+// Every stored field of a verified payment (§7I), for the transaction detail page.
+export function toPaymentDetailDto(payment: Payment & { invoice: { id: string; invoiceNumber: string; orderId: string | null } }) {
+  return {
+    ...toRecentPaymentDto(payment),
+    orderId: payment.invoice.orderId,
+    network: payment.network,
+    reference: payment.reference,
+    recipientTokenAccount: payment.recipientTokenAccount,
+    tokenMint: payment.tokenMint,
+    createdAt: payment.createdAt.toISOString(),
+  };
+}
+
 export type UnmatchedPaymentDto = ReturnType<typeof toUnmatchedPaymentDto>;
 
 export function toUnmatchedPaymentDto(entry: UnmatchedPayment & { invoice?: { invoiceNumber: string } | null }) {

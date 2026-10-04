@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { listPayments } from "@/lib/payments/list-payments";
+import { getPayment, listPayments } from "@/lib/payments/list-payments";
+import { toPaymentDetailDto } from "@/lib/payments/payment-dto";
 import { resetDatabase } from "../support/db";
-import { invoice, merchant, PAYER, payment, tick, USDC } from "../support/payments";
+import { invoice, merchant, MINT, PAYER, PAYOUT, payment, tick, USDC } from "../support/payments";
 
 // Phase 12: the transaction history query. Newest first, keyset pages, filters, exact
 // search, and only the signed-in merchant's payments.
@@ -95,5 +96,39 @@ describe("merchant isolation", () => {
     expect((await listPayments(mine.id, { search: { invoiceNumber: theirInvoice.invoiceNumber }, limit: 10 })).payments).toEqual([]);
     // A cursor taken from their (newer) payment still only pages through mine.
     expect(signatures((await listPayments(mine.id, { cursor: theirs.id, limit: 10 })).payments)).toEqual([myPayment.signature]);
+  });
+});
+
+describe("transaction detail (Phase 12.3)", () => {
+  it("returns the merchant's own payment with every §7I field", async () => {
+    const m = await merchant(PAYER);
+    const inv = await invoice(m.id, "PAID", { amount: USDC(2.5), orderId: "ORDER-10001" });
+    const recorded = await payment(inv, USDC(2.5), "FINALIZED", true);
+
+    const row = await getPayment(m.id, recorded.id);
+    expect(row).not.toBeNull();
+    const dto = toPaymentDetailDto(row!);
+
+    expect(dto).toMatchObject({
+      id: recorded.id, invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, orderId: "ORDER-10001",
+      signature: recorded.signature, reference: inv.reference, senderWallet: PAYER, recipientWallet: PAYOUT,
+      recipientTokenAccount: recorded.recipientTokenAccount, tokenMint: MINT, amount: "2500000", amountDisplay: "2.50",
+      slot: "1", commitment: "FINALIZED", late: true, network: "DEVNET",
+    });
+    for (const time of [dto.blockTime, dto.verifiedAt, dto.finalizedAt, dto.createdAt]) expect(time).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("is not found for another merchant's payment, although they share a payout wallet", async () => {
+    const mine = await merchant(PAYER);
+    const other = await merchant(OTHER_OWNER);
+    const theirs = await payment(await invoice(other.id, "PAID"), USDC(50), "FINALIZED");
+
+    expect(await getPayment(mine.id, theirs.id)).toBeNull();
+    expect(await getPayment(other.id, theirs.id)).not.toBeNull();
+  });
+
+  it("is not found for an id that doesn't exist", async () => {
+    const m = await merchant(PAYER);
+    expect(await getPayment(m.id, "01a10000-0000-7000-8000-000000000000")).toBeNull();
   });
 });

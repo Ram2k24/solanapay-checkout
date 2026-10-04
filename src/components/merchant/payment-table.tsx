@@ -16,7 +16,7 @@ export function PaymentTable({ payments }: { payments: RecentPaymentDto[] }) {
             <th className="px-4 py-3 text-right font-medium">Amount</th>
             <th className="px-4 py-3 font-medium">From</th>
             <th className="px-4 py-3 font-medium">Status</th>
-            <th className="px-4 py-3 font-medium"><span className="sr-only">Explorer</span></th>
+            <th className="px-4 py-3 font-medium"><span className="sr-only">Links</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -46,8 +46,11 @@ export function PaymentTable({ payments }: { payments: RecentPaymentDto[] }) {
                   </span>
                 )}
               </td>
-              <td className="whitespace-nowrap px-4 py-3 text-right">
-                <a href={payment.explorerUrl} target="_blank" rel="noreferrer" className="text-xs underline">
+              <td className="whitespace-nowrap px-4 py-3 text-right text-xs">
+                <Link prefetch={false} href={`/transactions/${payment.id}`} className="underline">
+                  Details
+                </Link>
+                <a href={payment.explorerUrl} target="_blank" rel="noreferrer" className="ml-3 underline">
                   Explorer
                 </a>
               </td>
