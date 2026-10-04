@@ -12,13 +12,15 @@ export async function getInvoiceSummary(merchantId: string): Promise<Record<List
   return { ...byStatus, TOTAL: counts.reduce((a, b) => a + b, 0) };
 }
 
-// USDC received (base units): the sum of FINALIZED verified payments. Confirmed but not
-// yet finalized payments aren't counted as received. Unmatched payments aren't either:
-// they're in review, shown separately.
-export async function getReceivedTotal(merchantId: string): Promise<bigint> {
-  const { _sum } = await db.payment.aggregate({
+// Verified payments, in base units. `received`: FINALIZED payments only. `confirming`:
+// CONFIRMED payments still waiting for finality (money landed, not yet counted as
+// received). Unmatched payments are in neither: they're in review, shown separately.
+export async function getPaymentTotals(merchantId: string): Promise<{ received: bigint; confirming: bigint }> {
+  const groups = await db.payment.groupBy({
+    by: ["commitment"],
+    where: { invoice: { merchantId } },
     _sum: { amount: true },
-    where: { commitment: "FINALIZED", invoice: { merchantId } },
   });
-  return _sum.amount ?? 0n;
+  const sum = (commitment: "FINALIZED" | "CONFIRMED") => groups.find((g) => g.commitment === commitment)?._sum.amount ?? 0n;
+  return { received: sum("FINALIZED"), confirming: sum("CONFIRMED") };
 }

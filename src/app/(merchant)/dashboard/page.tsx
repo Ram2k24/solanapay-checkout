@@ -4,7 +4,7 @@ import { InvoiceTable } from "@/components/merchant/invoice-table";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getCurrentMerchant } from "@/lib/merchant/current";
 import { toInvoiceDto } from "@/lib/payments/invoice-dto";
-import { getInvoiceSummary, getReceivedTotal } from "@/lib/payments/invoice-summary";
+import { getInvoiceSummary, getPaymentTotals } from "@/lib/payments/invoice-summary";
 import { USDC_DECIMALS } from "@/lib/config/networks";
 import { db } from "@/lib/db/client";
 import { formatUnits } from "@/lib/money/format";
@@ -17,14 +17,14 @@ export default async function DashboardPage() {
   const merchant = await getCurrentMerchant();
   if (!merchant) redirect("/onboarding");
 
-  const [summary, recent, received, unmatchedOpen] = await Promise.all([
+  const [summary, recent, totals, unmatchedOpen] = await Promise.all([
     getInvoiceSummary(merchant.id),
     listInvoices(merchant.id, { limit: 5 }),
-    getReceivedTotal(merchant.id),
+    getPaymentTotals(merchant.id),
     db.unmatchedPayment.count({ where: { merchantId: merchant.id, status: "OPEN" } }),
   ]);
   const tiles = [
-    ["USDC received", formatUnits(received, USDC_DECIMALS)],
+    ["USDC received", formatUnits(totals.received, USDC_DECIMALS)],
     ["Total invoices", summary.TOTAL],
     ["Pending", summary.PENDING],
     ["Paid", summary.PAID],
