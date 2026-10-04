@@ -17,7 +17,9 @@ export function assertSameOrigin(request: Request): void {
 // is trustworthy only behind a proxy that overwrites the header (e.g. Vercel).
 // Anything that isn't an IP address (e.g. a forged, oversized header) counts as
 // "unknown", so it can't overflow the rate-limit key column or mint fresh keys.
-export function clientIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
+// Takes a request (route handlers) or its headers (server pages, via headers()).
+export function clientIp(source: Request | { get(name: string): string | null }): string {
+  const headers = "headers" in source ? source.headers : source;
+  const forwarded = headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "";
   return isIP(forwarded) ? forwarded : "unknown";
 }

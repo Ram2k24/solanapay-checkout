@@ -17,7 +17,7 @@ type Step =
   | { name: "enter" }
   | { name: "confirm"; address: string } // the merchant checks the full address
   | { name: "signing"; address: string }
-  | { name: "done"; address: string };
+  | { name: "done"; address: string; otherSessionsRevoked: number };
 
 // Settings: change the payout wallet (Phase 11.4, decisions D5 and D7). The server issues
 // a one-time confirmation naming the new wallet; the wallet the merchant signed in with
@@ -53,8 +53,11 @@ export function PayoutWalletForm({ current, signedInWallet }: { current: string;
     try {
       const challenge = await postJson<{ nonce: string; message: string }>("/api/merchant/payout-wallet/challenge", { payoutWallet: address });
       const signature = await signMessage.dispatchAsync(new TextEncoder().encode(challenge.message));
-      await postJson("/api/merchant/payout-wallet", { nonce: challenge.nonce, signature: getBase64Decoder().decode(signature) });
-      setStep({ name: "done", address });
+      const result = await postJson<{ otherSessionsRevoked: number }>("/api/merchant/payout-wallet", {
+        nonce: challenge.nonce,
+        signature: getBase64Decoder().decode(signature),
+      });
+      setStep({ name: "done", address, otherSessionsRevoked: result.otherSessionsRevoked });
       router.refresh();
     } catch (e) {
       if (e instanceof ApiRequestError && e.fields.payoutWallet) {
@@ -130,6 +133,8 @@ export function PayoutWalletForm({ current, signedInWallet }: { current: string;
       {step.name === "done" && (
         <p className="rounded-lg bg-emerald-50 p-3 text-emerald-900" role="status">
           Payout wallet changed to <span className="font-mono">{shortenAddress(step.address)}</span>. New invoices will be paid there.
+          {step.otherSessionsRevoked > 0 &&
+            ` For your security, ${step.otherSessionsRevoked === 1 ? "1 other session was" : `${step.otherSessionsRevoked} other sessions were`} signed out.`}
         </p>
       )}
     </div>

@@ -1,13 +1,14 @@
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { beforeEach, describe, expect, it } from "vitest";
 import { POST as nonce } from "@/app/api/auth/nonce/route";
+import { POST as verify } from "@/app/api/auth/verify/route";
+import { GET as getMerchant, POST as createMerchant } from "@/app/api/merchant/route";
 import { POST as createInvoice } from "@/app/api/invoices/route";
-import { POST as createMerchant } from "@/app/api/merchant/route";
 import { POST as requestChange } from "@/app/api/merchant/payout-wallet/challenge/route";
 import { POST as confirmChange } from "@/app/api/merchant/payout-wallet/route";
 import { db } from "@/lib/db/client";
 import { resetDatabase } from "../support/db";
-import { apiRequest, json, signInNewWallet } from "../support/http";
+import { apiRequest, json, sessionCookie, signInNewWallet } from "../support/http";
 import { createTestWallet } from "../support/wallet";
 import { freezeClockMidMinute } from "../support/clock";
 
@@ -47,11 +48,11 @@ describe("changing the payout wallet", () => {
     const response = await confirm(session.cookie, { nonce: challenge.nonce, signature: await session.wallet.sign(challenge.message) });
 
     expect(response.status).toBe(200);
-    expect(await json(response)).toEqual({ payoutWallet: next.address });
+    expect(await json(response)).toEqual({ payoutWallet: next.address, otherSessionsRevoked: 0 });
     expect(await defaultWallet()).toBe(next.address);
     expect(await db.wallet.count()).toBe(2);
     const audit = await db.auditLog.findFirstOrThrow({ where: { action: "merchant.payout_wallet_changed" } });
-    expect(audit.data).toEqual({ from: session.wallet.address, to: next.address });
+    expect(audit.data).toEqual({ from: session.wallet.address, to: next.address, otherSessionsRevoked: 0 });
   });
 
   it("existing invoices keep their recipient; new invoices are paid to the new wallet", async () => {
@@ -157,5 +158,33 @@ describe("refusals", () => {
     const next = await createTestWallet();
     for (let i = 0; i < 10; i++) expect((await challengeFor(session.cookie, next.address)).status).toBe(200);
     expect((await challengeFor(session.cookie, next.address)).status).toBe(429);
+  });
+});
+
+describe("other sessions (Phase 13, decision D8)", () => {
+  it("are signed out by a payout wallet change; the session that made it stays signed in", async () => {
+    const session = await merchant();
+    // The same merchant signed in a second time (another browser or device).
+    const challenge = await json(await nonce(apiRequest("/api/auth/nonce", { body: { walletAddress: session.wallet.address } })));
+    const signedIn = await verify(apiRequest("/api/auth/verify", { body: { nonce: challenge.nonce, signature: await session.wallet.sign(challenge.message) } }));
+    const otherCookie = sessionCookie(signedIn);
+    expect((await getMerchant(apiRequest("/api/merchant", { method: "GET", cookie: otherCookie }))).status).toBe(200);
+
+    const next = await createTestWallet();
+    const response = await changeTo(session, next.address);
+
+    expect(await json(response)).toEqual({ payoutWallet: next.address, otherSessionsRevoked: 1 });
+    expect((await getMerchant(apiRequest("/api/merchant", { method: "GET", cookie: otherCookie }))).status).toBe(401);
+    expect((await getMerchant(apiRequest("/api/merchant", { method: "GET", cookie: session.cookie }))).status).toBe(200);
+    const audit = await db.auditLog.findFirstOrThrow({ where: { action: "merchant.payout_wallet_changed" } });
+    expect(audit.data).toMatchObject({ otherSessionsRevoked: 1 });
+  });
+
+  it("leaves other merchants' sessions alone", async () => {
+    const mine = await merchant();
+    const theirs = await merchant();
+    const next = await createTestWallet();
+    await changeTo(mine, next.address);
+    expect((await getMerchant(apiRequest("/api/merchant", { method: "GET", cookie: theirs.cookie }))).status).toBe(200);
   });
 });

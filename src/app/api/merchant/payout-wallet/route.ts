@@ -15,7 +15,7 @@ import { requireMerchant } from "@/lib/merchant/require-merchant";
 // a stolen session cookie alone can't redirect future payments. The new wallet comes
 // from the stored challenge, not from this request. Existing invoices keep their
 // recipient (their terms are immutable, enforced by the database); new invoices use the
-// new default wallet.
+// new default wallet. Every other session of the merchant is signed out.
 const bodySchema = z.strictObject({
   nonce: z.string().min(8).max(64),
   signature: z.string().min(1).max(200), // base64 Ed25519 signature
@@ -44,7 +44,7 @@ export const POST = route("merchant.payout_wallet.change", async (request, { log
   const problem = payoutWalletProblem(to); // re-checked: the rules may have changed since the challenge
   if (problem) throw new ApiError("InvalidRequest", { payoutWallet: problem });
 
-  const from = await db.$transaction(async (tx) => {
+  const change = await db.$transaction(async (tx) => {
     // One change at a time per merchant: concurrent confirmations queue here.
     await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchant.id}::uuid FOR UPDATE`;
     const current = await tx.wallet.findFirstOrThrow({ where: { merchantId: merchant.id, isDefault: true } });
@@ -55,15 +55,21 @@ export const POST = route("merchant.payout_wallet.change", async (request, { log
       create: { merchantId: merchant.id, address: to, label: "Default", isDefault: true },
       update: { isDefault: true },
     });
+    // Where the money goes just changed: sign the merchant out everywhere else
+    // (Phase 13, decision D8), so a session stolen earlier can't act on the new setup.
+    const { count: otherSessionsRevoked } = await tx.session.updateMany({
+      where: { userId: session.userId, id: { not: session.sessionId }, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
     await tx.auditLog.create({
       data: {
         actorType: "USER", actorId: session.userId, action: "merchant.payout_wallet_changed", entityType: "merchant",
-        entityId: merchant.id, data: { from: current.address, to },
+        entityId: merchant.id, data: { from: current.address, to, otherSessionsRevoked },
       },
     });
-    return current.address;
+    return { from: current.address, otherSessionsRevoked };
   });
 
-  if (from) log.info({ merchantId: merchant.id, from, to }, "payout wallet changed");
-  return NextResponse.json({ payoutWallet: to });
+  if (change) log.info({ merchantId: merchant.id, from: change.from, to, otherSessionsRevoked: change.otherSessionsRevoked }, "payout wallet changed");
+  return NextResponse.json({ payoutWallet: to, otherSessionsRevoked: change?.otherSessionsRevoked ?? 0 });
 });

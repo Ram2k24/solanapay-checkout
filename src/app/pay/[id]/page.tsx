@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/merchant/status-badge";
 import { NetworkBanner } from "@/components/network-banner";
 import { ApiError } from "@/lib/http/api";
 import { enforceRateLimit } from "@/lib/http/rate-limit";
+import { clientIp } from "@/lib/http/request";
 import { getPublicCheckout } from "@/lib/payments/checkout";
 import { POLLING } from "@/lib/payments/status-poller";
 
@@ -27,7 +28,7 @@ const STATUS_MESSAGES = {
 } as const;
 
 export default async function PayPage({ params }: { params: Promise<{ id: string }> }) {
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(await headers()); // validated: a forged header counts as "unknown" (Phase 13)
   try {
     await enforceRateLimit(`pay:view:${ip}`, 60, 60);
   } catch (error) {

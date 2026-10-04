@@ -36,9 +36,14 @@ export async function signInNewWallet() {
   const response = await verify(
     apiRequest("/api/auth/verify", { body: { nonce: challenge.nonce, signature: await wallet.sign(challenge.message) } }),
   );
+  return { wallet, cookie: sessionCookie(response) };
+}
+
+// The session cookie set by a successful sign-in response, ready for a Cookie header.
+export function sessionCookie(response: Response): string {
   const token = (response.headers.get("set-cookie") ?? "").match(new RegExp(`${SESSION_COOKIE}=([^;]*)`))?.[1];
   if (!token) throw new Error("sign-in failed in test helper");
-  return { wallet, cookie: `${SESSION_COOKIE}=${token}` };
+  return `${SESSION_COOKIE}=${token}`;
 }
 
 // Signs in and creates a merchant profile (payout wallet = the signed-in wallet).
