@@ -9,7 +9,7 @@ const ITEMS = [
   { label: "Create invoice", href: "/invoices/new" },
   { label: "Unmatched payments", href: "/payments/unmatched" },
   { label: "Transactions", href: null }, // Phase 12
-  { label: "Settings", href: null }, // Phase 13
+  { label: "Settings", href: "/settings" },
 ] as const;
 
 // Merchant navigation: a sidebar on desktop, a scrollable row on phones.

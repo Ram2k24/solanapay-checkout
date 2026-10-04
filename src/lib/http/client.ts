@@ -13,9 +13,13 @@ export class ApiRequestError extends Error {
 
 type ErrorBody = { error?: { code: string; message: string; fields?: Record<string, string> } } | null;
 
-export async function postJson<T>(url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+export function postJson<T>(url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+  return sendJson<T>("POST", url, body, headers);
+}
+
+export async function sendJson<T>(method: "POST" | "PATCH", url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
   const response = await fetch(url, {
-    method: "POST",
+    method,
     headers: { "content-type": "application/json", ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
