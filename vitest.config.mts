@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 const path = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -14,6 +14,9 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./tests/support/setup.ts"],
+    // Playwright's browser tests (npm run test:e2e) and the live devnet suite
+    // (npm run test:devnet) run separately.
+    exclude: [...configDefaults.exclude, "tests/e2e/**", "tests/devnet/**"],
     // Integration tests share one test database, so run files one at a time.
     fileParallelism: false,
   },

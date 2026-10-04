@@ -34,3 +34,10 @@ id.json
 
 # Prisma Client is generated from prisma/schema.prisma (npm install runs `prisma generate`)
 src/generated/
+
+# Playwright E2E (Phase 14)
+/.next-e2e/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { RESET_SQL } from "./reset-sql";
 
 // The owner's connection, used only to empty the tables between tests: the app role
 // (which the code under test uses) may not TRUNCATE (Phase 13.5).
@@ -15,6 +16,5 @@ function ownerDb(): PrismaClient {
 
 // Empties all tables between tests. Refuses to run against a non-test database.
 export async function resetDatabase(): Promise<void> {
-  await ownerDb().$executeRaw`TRUNCATE users, merchants, wallets, invoices, invoice_checks, payments, unmatched_payments, audit_logs,
-    auth_nonces, sessions, rate_limits RESTART IDENTITY CASCADE`;
+  await ownerDb().$executeRawUnsafe(RESET_SQL);
 }

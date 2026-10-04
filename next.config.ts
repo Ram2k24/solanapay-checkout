@@ -3,6 +3,9 @@ import { securityHeaders } from "./src/lib/http/security-headers";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The E2E suite (Phase 14) builds into its own folder, with its own NEXT_PUBLIC_*
+  // values, so it never overwrites the regular .next build.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Security headers on every route (Phase 13). Next.js loads .env before this file,
   // and evaluates it at build time, like the NEXT_PUBLIC_* values the pages use.
   async headers() {

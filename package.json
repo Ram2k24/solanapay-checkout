@@ -21,6 +21,7 @@
     "db:test:setup": "./scripts/test-db-setup.sh",
     "db:role": "./scripts/db-app-role.sh",
     "smoke": "./scripts/smoke-test.sh",
+    "test:e2e": "playwright test",
     "db:seed": "tsx --conditions=react-server scripts/seed-dev.ts",
     "reconciler": "node scripts/reconciler-loop.mjs"
   },
@@ -42,6 +43,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.19.0",
     "@types/qrcode": "1.5.6",
