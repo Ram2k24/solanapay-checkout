@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AutoRefresh } from "@/components/merchant/auto-refresh";
 import { InvoiceTable } from "@/components/merchant/invoice-table";
 import { PaymentTable } from "@/components/merchant/payment-table";
 import { getCurrentSession } from "@/lib/auth/session";
@@ -44,7 +45,10 @@ export default async function DashboardPage() {
   return (
     <>
       <p className="text-sm text-slate-500">{merchant.name}</p>
-      <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <AutoRefresh renderedAt={new Date().toISOString()} />
+      </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {tiles.map(({ label, value, note }) => (
