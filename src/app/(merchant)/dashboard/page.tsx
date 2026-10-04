@@ -11,7 +11,7 @@ import { USDC_DECIMALS } from "@/lib/config/networks";
 import { db } from "@/lib/db/client";
 import { formatUnits } from "@/lib/money/format";
 import { listInvoices } from "@/lib/payments/list-invoices";
-import { listRecentPayments } from "@/lib/payments/list-payments";
+import { listPayments } from "@/lib/payments/list-payments";
 import { toRecentPaymentDto } from "@/lib/payments/payment-dto";
 
 export const metadata = { title: "Dashboard · SolanaPay Checkout" };
@@ -21,10 +21,10 @@ export default async function DashboardPage() {
   const merchant = await getCurrentMerchant();
   if (!merchant) redirect("/onboarding");
 
-  const [summary, recent, payments, totals, unmatchedOpen] = await Promise.all([
+  const [summary, recent, { payments: recentPayments }, totals, unmatchedOpen] = await Promise.all([
     getInvoiceSummary(merchant.id),
     listInvoices(merchant.id, { limit: 5 }),
-    listRecentPayments(merchant.id, 5),
+    listPayments(merchant.id, { limit: 5 }),
     getPaymentTotals(merchant.id),
     db.unmatchedPayment.count({ where: { merchantId: merchant.id, status: "OPEN" } }),
   ]);
@@ -67,8 +67,8 @@ export default async function DashboardPage() {
 
       <h2 className="mt-8 font-medium">Recent payments</h2>
       <div className="mt-3">
-        {payments.length ? (
-          <PaymentTable payments={payments.map((p) => toRecentPaymentDto(p))} />
+        {recentPayments.length ? (
+          <PaymentTable payments={recentPayments.map((p) => toRecentPaymentDto(p))} />
         ) : (
           <p className="rounded-xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-600">
             No payments yet. They appear here once verified on Solana.
