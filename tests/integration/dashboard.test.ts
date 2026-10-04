@@ -93,7 +93,7 @@ describe("listPayments: the dashboard's recent payments", () => {
     const { payments: recent } = await listPayments(mine.id, { limit: 3 });
 
     expect(recent.map((p) => p.signature)).toEqual(recorded.slice(1).reverse().map((p) => p.signature));
-    expect(recent[0]!.invoice).toEqual({ id: invoices[3]!.id, invoiceNumber: invoices[3]!.invoiceNumber });
+    expect(recent[0]!.invoice).toEqual({ id: invoices[3]!.id, invoiceNumber: invoices[3]!.invoiceNumber, orderId: null });
   });
 
   it("is empty without payments", async () => {

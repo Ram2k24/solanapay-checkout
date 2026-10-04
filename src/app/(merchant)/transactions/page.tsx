@@ -8,7 +8,7 @@ import { getCurrentMerchant } from "@/lib/merchant/current";
 import { listPayments, PAYMENT_FILTERS } from "@/lib/payments/list-payments";
 import { toRecentPaymentDto } from "@/lib/payments/payment-dto";
 import { parsePaymentSearch } from "@/lib/payments/payment-search";
-import { transactionsHref } from "@/lib/payments/transactions-url";
+import { transactionsExportHref, transactionsHref } from "@/lib/payments/transactions-url";
 
 export const metadata = { title: "Transactions · SolanaPay Checkout" };
 
@@ -94,6 +94,16 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
           </div>
         )}
       </div>
+
+      {payments.length > 0 && (
+        <p className="mt-3 text-right text-sm">
+          {/* A plain link: the browser downloads the file with the session cookie. */}
+          <a href={transactionsExportHref({ filter, q: query })} download className="underline">
+            Download CSV
+          </a>{" "}
+          <span className="text-slate-500">(this view, up to 10,000 rows)</span>
+        </p>
+      )}
 
       <div className="mt-4 flex justify-between text-sm">
         {cursor ? <Link href={transactionsHref({ filter, q: query })} className="underline">First page</Link> : <span />}

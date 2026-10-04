@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { transactionsHref } from "@/lib/payments/transactions-url";
+import { transactionsExportHref, transactionsHref } from "@/lib/payments/transactions-url";
 
 describe("transactionsHref", () => {
   it("is the bare page without parameters", () => {
@@ -12,5 +12,12 @@ describe("transactionsHref", () => {
 
   it("encodes what the merchant typed", () => {
     expect(transactionsHref({ q: "a b&c=d" })).toBe("/transactions?q=a+b%26c%3Dd");
+  });
+});
+
+describe("transactionsExportHref", () => {
+  it("exports the current view: filter and search, never a page cursor", () => {
+    expect(transactionsExportHref({})).toBe("/api/payments/export");
+    expect(transactionsExportHref({ filter: "LATE", q: "INV-2026-00038" })).toBe("/api/payments/export?filter=LATE&q=INV-2026-00038");
   });
 });

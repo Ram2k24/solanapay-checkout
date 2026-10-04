@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db/client";
 import type { PaymentSearch } from "./payment-search";
+import { paymentsCsv } from "./payments-csv";
 
 // The merchant's verified payments (Phase 12 transaction history; the dashboard shows the
 // first 5). Newest first by id: UUIDv7 ids sort by the time the payment was recorded, so
@@ -32,7 +33,7 @@ export async function listPayments(
     },
     orderBy: { id: "desc" },
     take: opts.limit + 1,
-    include: { invoice: { select: { id: true, invoiceNumber: true } } },
+    include: { invoice: { select: { id: true, invoiceNumber: true, orderId: true } } },
   });
   const hasMore = rows.length > opts.limit;
   const payments = hasMore ? rows.slice(0, opts.limit) : rows;
@@ -46,4 +47,17 @@ export async function getPayment(merchantId: string, id: string) {
     where: { id, invoice: { merchantId } },
     include: { invoice: { select: { id: true, invoiceNumber: true, orderId: true } } },
   });
+}
+
+// The current view as CSV (Phase 12 export, decision D4): the same query as the page,
+// newest first, at most `maxRows` rows. `truncated` says more payments matched.
+export const EXPORT_MAX_ROWS = 10_000;
+
+export async function exportPayments(
+  merchantId: string,
+  opts: { filter?: PaymentFilter; search?: PaymentSearch | null },
+  maxRows = EXPORT_MAX_ROWS,
+) {
+  const { payments, nextCursor } = await listPayments(merchantId, { ...opts, limit: maxRows });
+  return { csv: paymentsCsv(payments), rows: payments.length, truncated: nextCursor !== null };
 }
