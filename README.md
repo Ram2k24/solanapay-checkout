@@ -2,7 +2,9 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–13 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry, merchant dashboard and settings, transaction history, security hardening, automated tests: unit, integration, browser E2E and live devnet).
+**Status:** early development. Phases 1–13 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry, merchant dashboard and settings, transaction history, security hardening, automated tests, devnet deployment).
+
+**Live (devnet):** https://solanapay-checkout.vercel.app
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -143,7 +145,12 @@ A GitHub Actions workflow (`.github/workflows/ci.yml`) runs all of it except the
 devnet suite on every push and pull request.
 
 ## Deployment
-_Phase 15._
+Deployed on Vercel (Hobby, `iad1`) with Neon Postgres (the app connects as a
+least-privilege role through Neon's pooler), Helius as the server's devnet RPC, and
+cron-job.org running payment detection and expiry every 2 minutes. Setup, secrets and
+limits: [docs/deployment.md](docs/deployment.md).
+
+    SMOKE_URL=https://solanapay-checkout.vercel.app npm run smoke   # checks the live site
 
 ## Security
 Never share seed phrases or private keys. The application never requests,

@@ -6,8 +6,8 @@ import { runReconciler } from "@/lib/payments/reconciler";
 
 // One reconciler run: detects payments and expires overdue invoices (chain first), then
 // deletes expired challenges, ended sessions and old rate-limit windows (Phase 13).
-// Called on a schedule: every 30 s by `npm run reconciler` in development, every 5 min by
-// .github/workflows/reconcile.yml in production (Phase 15). Not for browsers: no session,
+// Called on a schedule: every 30 s by `npm run reconciler` in development, every 2 min by
+// cron-job.org in production, with .github/workflows/reconcile.yml as backup (Phase 15). Not for browsers: no session,
 // no Origin check; the CRON_SECRET bearer token is the only credential.
 export const POST = route("internal.reconcile", async (request, { log }) => {
   assertCronSecret(request);

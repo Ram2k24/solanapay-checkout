@@ -246,6 +246,20 @@ Sessions last 8 hours (absolute).
   including the public checkout page.
 - **Onboarding** is rate-limited (10/min per user), since each attempt may query the RPC.
 
+## Production (Phase 15)
+
+- Secrets are generated per environment and live only where they are used (table in
+  [deployment.md](deployment.md#where-each-secret-lives)). The internet-facing app holds
+  only the least-privilege database URL; the owner's URL stays on the operator's machine.
+- Database traffic uses TLS with full certificate verification (`sslmode=verify-full`).
+- `CRON_SECRET` is held by Vercel, a GitHub Actions secret and the cron-job.org job. It
+  can only trigger a reconciler run, which is idempotent and budgeted; the response
+  carries counts only.
+- Deployment scripts read secrets files as plain text (`scripts/lib/env-file.sh`) and
+  pass secrets to child programs through environment variables, never as command-line
+  arguments (visible to other local processes).
+- The repository history was scanned for secrets before it was made public.
+
 ## Error responses
 
 API errors have the shape `{"error": {"code": "...", "message": "..."}}` with codes
@@ -264,9 +278,8 @@ append-only audit log, all enforced against an app role that can't switch them o
 
 ## Known gaps (tracked)
 
-- **Client IP** comes from the first `X-Forwarded-For` entry. That is only
-  trustworthy behind a proxy that overwrites the header (e.g. Vercel). Revisit for
-  other hosting.
+- **Client IP** comes from the first `X-Forwarded-For` entry, which Vercel (our host,
+  Phase 15) sets itself. Behind another host, check that its proxy overwrites the header.
 - **CSP keeps `'unsafe-inline'` for scripts** because Next.js inlines its bootstrap
   scripts. A nonce-based policy is on the Phase 17 roadmap. Everything else in the
   policy is strict (no external script hosts, no eval in production, no framing).

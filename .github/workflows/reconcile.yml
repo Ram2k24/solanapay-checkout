@@ -1,4 +1,8 @@
-# Production reconciler (Phase 15, decision G4): every 5 minutes, asks the deployed app
+# Production reconciler BACKUP (Phase 15). The primary scheduler is cron-job.org, every 2
+# minutes (decision G4b): GitHub's schedules proved unreliable here (one run in hours).
+# This workflow still runs every 5 minutes when GitHub starts it, and fails visibly.
+#
+# It asks the deployed app
 # to detect payments, expire overdue invoices and clean up expired rows
 # (POST /api/internal/reconcile with the CRON_SECRET bearer token, a repository secret).
 # While a customer has the checkout page open, the page itself finds the payment within

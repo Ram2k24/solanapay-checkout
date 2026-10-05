@@ -306,3 +306,38 @@ The app made a Solana RPC call the mock doesn't model yet. Add it to
 Public devnet may eventually drop old transactions. Replace the payments in
 `tests/devnet/live-payments.test.ts` with newer ones (values from the `payments` table).
 
+## Deployment (Phase 15)
+
+**Vercel build: `Invalid server environment configuration … DATABASE_URL: Invalid URL`**
+The value was cut off. Terminal editors show long lines truncated on screen (ending in
+`>`), and copying copies only what is visible. Import `.env.vercel` with Vercel's
+**Import .env** instead of copying values.
+
+**`vercel-env.sh`: `HELIUS_DEVNET_RPC_URL doesn't answer as Solana devnet`**
+Usually the mainnet URL (`mainnet.helius-rpc.com`). The same API key works with
+`devnet.helius-rpc.com`.
+
+**`db-remote.sh`: `… is not set in .env.neon` although the file has it**
+Hosted database URLs contain `&`; the scripts read the file as text (never `source` it).
+If you edit a script, keep using `read_env_file`.
+
+**`psql: could not translate host name … Try again` (Docker)**
+Docker's default network can't reach the configured DNS servers on some networks;
+`db-remote.sh` runs psql with `--network host`.
+
+**`permission denied to alter role … SUPERUSER attribute` on Neon**
+Hosted Postgres owners aren't superusers. `db-app-role.sql` checks the role's powers
+instead of setting them; pull the current script.
+
+**`statement_timeout: '0'` through Neon's pooler**
+The limit is set on the role (`ALTER ROLE … SET`); sessions the pooler opened earlier
+don't have it. Restart the compute in Neon's console.
+
+**Reconcile workflow: `The CRON_SECRET repository secret is not set`**
+Add it under Settings → Secrets and variables → **Actions** → Repository secrets (not
+Variables, Dependabot, Codespaces or an Environment).
+
+**GitHub's scheduled reconcile runs rarely or not at all**
+GitHub's schedules are best effort. cron-job.org is the primary scheduler; the workflow
+is a backup.
+
