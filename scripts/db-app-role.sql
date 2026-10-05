@@ -26,8 +26,23 @@ BEGIN
   END IF;
 END
 $$;
-ALTER ROLE solanapay_app WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS
-  PASSWORD :'app_password';
+ALTER ROLE solanapay_app WITH LOGIN PASSWORD :'app_password';
+-- Server-side limit for every session of the role, also through a connection pooler
+-- (PgBouncer drops the statement_timeout the app asks for when it connects).
+ALTER ROLE solanapay_app SET statement_timeout = '10s';
+
+-- A new role has none of these powers (PostgreSQL's defaults). They are checked, not set:
+-- on hosted Postgres (e.g. Neon) the owner isn't a true superuser and may not even name
+-- the SUPERUSER attribute in ALTER ROLE. A role escalated by hand stops the script here.
+DO $$
+DECLARE r pg_roles%ROWTYPE;
+BEGIN
+  SELECT * INTO r FROM pg_roles WHERE rolname = 'solanapay_app';
+  IF r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls THEN
+    RAISE EXCEPTION 'solanapay_app has a power it must not have (superuser, createdb, createrole, replication or bypassrls); remove it, then run this script again';
+  END IF;
+END
+$$;
 
 BEGIN;
 
