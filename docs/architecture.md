@@ -61,10 +61,13 @@ Status: approved in Phase 0 (2026-09-27). Updated as phases land.
         │                     #   create/list, DTO, policy (expiry, limits)
         ├── solana/           # browser Solana client (wallet + RPC), address helpers
         └── wallet/           # wallet error handling
-    tests/
+    tests/                    # see docs/testing.md
     ├── support/              # test setup, test DB reset, throwaway wallets
+    ├── fixtures/solana/      # real devnet transactions (public chain data)
     ├── unit/
-    └── integration/          # route handlers against a real test database
+    ├── integration/          # route handlers against a real test database
+    ├── e2e/                  # Playwright: test wallet, mock Solana RPC, browser flows
+    └── devnet/               # live, read-only checks of real devnet payments
 
 ## Configuration
 

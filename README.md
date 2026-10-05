@@ -2,7 +2,7 @@
 
 > USDC checkout for merchants, powered by Solana Pay.
 
-**Status:** early development. Phases 1–13 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry, merchant dashboard and settings, transaction history, security hardening).
+**Status:** early development. Phases 1–13 complete (environment, app skeleton, database, wallet sign-in, invoices, Solana Pay QR, transaction requests, in-browser payment, on-chain payment verification, automatic detection and expiry, merchant dashboard and settings, transaction history, security hardening, automated tests: unit, integration, browser E2E and live devnet).
 Devnet only. Do not send real funds.
 
 ## Overview
@@ -100,6 +100,8 @@ Prerequisites: Node.js 24 LTS (`nvm use`), Docker with Compose plugin.
 | `npm run db:role` | Create/update the least-privilege app database role (dev and test) |
 | `npm run db:seed -- --wallet <addr>` | Development-only demo merchant and invoices (idempotent) |
 | `npm run smoke` | Smoke-test the production build (starts and stops its own server) |
+| `npm run test:e2e` | Browser tests (Playwright, Chromium) against a production build, with a test wallet and a mock Solana RPC |
+| `npm run test:devnet` | Live devnet: real payments fetched by signature and verified (read-only, needs network) |
 | `npm run reconciler` | Development: run payment detection and expiry every 30 s (dev server must be running) |
 
 Health check: `curl http://localhost:3000/api/health`
@@ -128,10 +130,17 @@ as the app role (`TEST_DATABASE_URL`), and only the table reset uses the owner
 (`TEST_MIGRATE_DATABASE_URL`).
 
     npm run db:test:setup   # once, and after new migrations
-    npm test                # 584 tests: auth, invoices, Solana Pay, transaction requests, in-browser payment, verification (real devnet fixtures), detection, expiry, concurrency, dashboard, settings, transaction history and export, security hardening
-    npm run db:check        # database constraint tests
+    npm test                # 587 unit and integration tests
+    npm run db:check        # 57 database checks
+    npx playwright install chromium   # once
+    npm run test:e2e        # 14 browser tests: sign-in, onboarding, invoices, checkout, payment to PAID, dashboard
+    npm run test:devnet     # 25 live checks of real devnet payments
 
-Full E2E and blockchain test suites: Phase 14.
+How each suite works, and where every case of the specification is tested (valid
+payment, wrong amount, wrong token, wrong recipient, expired invoice, duplicate
+transaction, already-paid invoice, invalid reference): [docs/testing.md](docs/testing.md).
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs all of it except the live
+devnet suite on every push and pull request.
 
 ## Deployment
 _Phase 15._

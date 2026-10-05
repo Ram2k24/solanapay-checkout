@@ -279,3 +279,30 @@ the wallet, then disconnect and reconnect it in the header.
 A previous server is still running or still shutting down. Stop it with Ctrl+C (not
 Ctrl+Z, which only suspends it) and start again.
 
+## Browser and devnet tests (Phase 14)
+
+**`BEWARE: your OS is not officially supported by Playwright`**
+Playwright downloads its Ubuntu 24.04 build of Chromium, which works on newer Ubuntu
+releases. If Chromium fails to start because of missing system libraries, run
+`sudo npx playwright install-deps chromium` once.
+
+**`SyntaxError: Cannot use 'import.meta' outside a module` in an E2E test**
+Playwright loads `.ts` test files as CommonJS, and the generated Prisma client is
+ESM-only. E2E code reads the database through `tests/e2e/support/db.ts` (plain `pg`),
+never through `@/lib/db` or `src/generated`.
+
+**E2E selector doesn't find a status badge ("Pending")**
+Badges contain lowercase text (`pending`) that CSS capitalizes; Playwright matches the
+text in the page, not what is drawn.
+
+**Random failures when `npm test` and `npm run test:e2e` run together**
+Both use the `*_test` database and empty it between tests. Run them one after the other.
+
+**`[mock-rpc] unsupported method: …` in E2E output**
+The app made a Solana RPC call the mock doesn't model yet. Add it to
+`tests/e2e/support/mock-rpc.ts`, answering as devnet would.
+
+**`npm run test:devnet` says devnet no longer returns a signature**
+Public devnet may eventually drop old transactions. Replace the payments in
+`tests/devnet/live-payments.test.ts` with newer ones (values from the `payments` table).
+
