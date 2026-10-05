@@ -18,21 +18,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-[[ -f .env.neon ]] || { echo ".env.neon not found (see the comment at the top of this script)." >&2; exit 1; }
-# Read as plain KEY=value text, never run as shell code: Neon's URLs contain "&"
-# (…?sslmode=require&channel_binding=require), which a shell would treat as an operator.
-while IFS= read -r line || [[ -n "$line" ]]; do
-  [[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue
-  key="${line%%=*}" value="${line#*=}"
-  [[ "$value" =~ ^\"(.*)\"$ || "$value" =~ ^\'(.*)\'$ ]] && value="${BASH_REMATCH[1]}"
-  case "$key" in
-    NEON_OWNER_DIRECT_URL | NEON_APP_POOLED_URL | APP_DB_PASSWORD) export "$key=$value" ;;
-    *) echo "Ignoring unknown key in .env.neon: $key" >&2 ;;
-  esac
-done < .env.neon
+. scripts/lib/env-file.sh
+read_env_file .env.neon NEON_OWNER_DIRECT_URL NEON_APP_POOLED_URL APP_DB_PASSWORD
 : "${NEON_OWNER_DIRECT_URL:?NEON_OWNER_DIRECT_URL is not set in .env.neon}"
 
-host=$(node -e 'console.log(new URL(process.argv[1]).hostname)' "$NEON_OWNER_DIRECT_URL")
+host=$(OWNER_URL="$NEON_OWNER_DIRECT_URL" node -e 'console.log(new URL(process.env.OWNER_URL).hostname)')
 if [[ "$host" == localhost || "$host" == 127.* || "$host" == *-pooler* ]]; then
   echo "Refusing: NEON_OWNER_DIRECT_URL must be the hosted database's DIRECT (non -pooler) URL." >&2
   exit 1
@@ -48,8 +38,8 @@ psql_as_owner() {
 
 # solanapay_app through the pooler: same database, host "<endpoint>-pooler.<rest>".
 app_pooled_url() {
-  POOLER="${1:-pooled}" node -e '
-    const url = new URL(process.argv[1]);
+  POOLER="${1:-pooled}" OWNER_URL="$NEON_OWNER_DIRECT_URL" node -e '
+    const url = new URL(process.env.OWNER_URL);
     const [endpoint, ...rest] = url.hostname.split(".");
     if (process.env.POOLER !== "direct") url.hostname = [endpoint + "-pooler", ...rest].join(".");
     url.username = "solanapay_app";
@@ -57,7 +47,7 @@ app_pooled_url() {
     // Full certificate verification, explicitly: pg will read "require" more weakly
     // (libpq semantics) from its next major version on.
     url.searchParams.set("sslmode", "verify-full");
-    console.log(url.toString());' "$NEON_OWNER_DIRECT_URL"
+    console.log(url.toString());'
 }
 
 case "${1:-}" in

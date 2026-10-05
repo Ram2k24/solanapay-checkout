@@ -2,21 +2,31 @@
 # Smoke test against the PRODUCTION build: starts `next start` on a spare port,
 # checks key endpoints, then stops the server. Run `npm run build` first.
 # Usage: npm run smoke
+#
+# Remote mode (Phase 15): checks a deployed site instead, without starting a server or
+# reading .env. It creates one sign-in challenge there (expires unused, cleaned up later).
+#   SMOKE_URL=https://your-app.vercel.app npm run smoke
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-PORT="${SMOKE_PORT:-3100}"
-BASE="http://localhost:$PORT"
-set -a; . ./.env; set +a
-ORIGIN="${NEXT_PUBLIC_APP_URL%/}"   # the Origin our own pages send
 WALLET="DEdD6CafAz6TtKhKhicX26mKszTt5kaq16An485E5XY"
+if [[ -n "${SMOKE_URL:-}" ]]; then
+  BASE="${SMOKE_URL%/}"
+  ORIGIN="$BASE"
+  NEXT_PUBLIC_SOLANA_NETWORK="${SMOKE_NETWORK:-devnet}"
+else
+  PORT="${SMOKE_PORT:-3100}"
+  BASE="http://localhost:$PORT"
+  set -a; . ./.env; set +a
+  ORIGIN="${NEXT_PUBLIC_APP_URL%/}"   # the Origin our own pages send
 
-# Own process group (setsid), so the cleanup stops Next.js and any child processes.
-setsid node_modules/.bin/next start -p "$PORT" > /dev/null 2>&1 &
-SERVER_PID=$!
-trap 'kill -- -"$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null' EXIT
+  # Own process group (setsid), so the cleanup stops Next.js and any child processes.
+  setsid node_modules/.bin/next start -p "$PORT" > /dev/null 2>&1 &
+  SERVER_PID=$!
+  trap 'kill -- -"$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null' EXIT
 
-for _ in $(seq 1 30); do curl -s -o /dev/null "$BASE/api/health" && break; sleep 0.5; done
+  for _ in $(seq 1 30); do curl -s -o /dev/null "$BASE/api/health" && break; sleep 0.5; done
+fi
 
 fail=0
 check() { # name, expected HTTP status, curl args...
@@ -31,7 +41,9 @@ check "landing page"                        200 "$BASE/"
 # Security headers (Phase 13) on a page and an API route.
 for path in "/" "/api/health"; do
   head=$(curl -s -D - -o /dev/null "$BASE$path" | tr -d '\r')
-  for h in "content-security-policy: default-src 'self'" "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin"; do
+  headers=("content-security-policy: default-src 'self'" "x-content-type-options: nosniff" "x-frame-options: DENY" "referrer-policy: strict-origin-when-cross-origin")
+  [[ "$BASE" == https://* ]] && headers+=("strict-transport-security: max-age=63072000")
+  for h in "${headers[@]}"; do
     if grep -qiF "$h" <<<"$head"; then printf '  \033[32mPASS\033[0m  %-45s %s\n' "header on $path" "${h%%:*}"
     else printf '  \033[31mFAIL\033[0m  %-45s missing %s\n' "header on $path" "${h%%:*}"; fail=1; fi
   done
