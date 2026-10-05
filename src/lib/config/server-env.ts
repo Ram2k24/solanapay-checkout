@@ -24,6 +24,9 @@ const schema = z
       .string()
       .regex(/^\d{1,9}(\.\d{1,6})?$/, "must be a decimal amount like 10000 or 2500.50")
       .default("10000"),
+    // The merchant whose public demo invoices "Try a demo payment" creates (Phase 16).
+    // Unset: no demo (the button isn't shown, the endpoint answers 404).
+    DEMO_MERCHANT_ID: z.uuid().optional(),
   })
   .superRefine((env, ctx) => {
     // Defense against typos or tampering: configured mints must equal Circle's official ones.

@@ -49,6 +49,9 @@ export async function createInvoice(
   merchant: Merchant,
   input: CreateInvoiceInput,
   idempotencyKey: string | null,
+  // Who created it, for the audit log: the signed-in merchant, or the system for
+  // invoices nobody signed in for (the public demo, Phase 16).
+  actor: { type: "USER" | "SYSTEM"; id: string } = { type: "USER", id: merchant.userId },
 ): Promise<{ invoice: Invoice; created: boolean }> {
   const amount = parseAmount(input.amount, USDC_DECIMALS, maxAmount);
   if (!amount.ok) throw new ApiError("InvalidRequest", { amount: AMOUNT_MESSAGES[amount.reason] });
@@ -100,8 +103,8 @@ export async function createInvoice(
       });
       await tx.auditLog.create({
         data: {
-          actorType: "USER",
-          actorId: merchant.userId,
+          actorType: actor.type,
+          actorId: actor.id,
           action: "invoice.created",
           entityType: "invoice",
           entityId: created.id,

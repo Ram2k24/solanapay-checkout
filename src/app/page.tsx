@@ -1,14 +1,15 @@
 import Link from "next/link";
+import { DemoButton } from "@/components/demo-button";
 import { NetworkBanner } from "@/components/network-banner";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { serverEnv } from "@/lib/config/server-env";
 
-// Calls to action. Set `href` when the target page exists; until then the
-// button renders as disabled so the landing page never links to a missing page.
-const CTAS = {
-  merchant: { label: "Open merchant dashboard", href: "/dashboard" as string | null },
-  demo: { label: "Try a demo payment", href: null as string | null },
-};
+const CTA = "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium";
+
+// The demo button appears only when a demo merchant is configured (DEMO_MERCHANT_ID,
+// server-only: the page learns just whether it is set).
+const DEMO_ENABLED = serverEnv.DEMO_MERCHANT_ID !== undefined;
 
 const STEPS = [
   { title: "Create an invoice", body: "Set the amount, order ID and expiry. A unique payment reference is generated for the invoice." },
@@ -34,25 +35,6 @@ const TECH = [
   ["Next.js + TypeScript", "Strictly typed web app and API"],
   ["PostgreSQL", "Relational ledger of invoices and payments"],
 ] as const;
-
-function Cta({ label, href, primary }: { label: string; href: string | null; primary?: boolean }) {
-  const style = primary
-    ? "bg-slate-900 text-white hover:bg-slate-800"
-    : "border border-slate-300 text-slate-900 hover:bg-slate-50";
-  const base = "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-medium";
-
-  if (href) {
-    return <Link href={href} className={`${base} ${style}`}>{label}</Link>;
-  }
-  return (
-    <span aria-disabled className={`${base} ${style} cursor-not-allowed opacity-60`}>
-      {label}
-      <span className={`rounded px-1.5 py-0.5 text-[11px] uppercase tracking-wide ${primary ? "bg-white/15" : "bg-slate-100"}`}>
-        Soon
-      </span>
-    </span>
-  );
-}
 
 function ExampleInvoice() {
   return (
@@ -101,8 +83,8 @@ export default function HomePage() {
               Every payment is verified on-chain before it is marked paid.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Cta {...CTAS.merchant} primary />
-              <Cta {...CTAS.demo} />
+              <Link href="/dashboard" className={`${CTA} bg-slate-900 text-white hover:bg-slate-800`}>Open merchant dashboard</Link>
+              {DEMO_ENABLED && <DemoButton className={`${CTA} border border-slate-300 text-slate-900 hover:bg-slate-50`} />}
             </div>
           </div>
           <ExampleInvoice />

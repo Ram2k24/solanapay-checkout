@@ -7,6 +7,7 @@
 #   ./scripts/db-remote.sh deploy   prisma migrate deploy (as the owner, direct URL)
 #   ./scripts/db-remote.sh role     create/update solanapay_app and its grants
 #   ./scripts/db-remote.sh check    the 57 database checks, rolled back
+#   ./scripts/db-remote.sh merchants   list merchants (id, name, payout wallet), read-only
 #   ./scripts/db-remote.sh app      connect as the app role through the pooler, like Vercel
 #   ./scripts/db-remote.sh app direct   the same, without the pooler (always a fresh session)
 #
@@ -62,6 +63,16 @@ case "${1:-}" in
   check)
     psql_as_owner < scripts/db-constraint-check.sql
     ;;
+  merchants)
+    # Read-only: a READ ONLY transaction, so nothing can change even by mistake.
+    psql_as_owner <<'SQL'
+BEGIN READ ONLY;
+SELECT m.id, m.name, w.address AS payout_wallet, m.created_at::date AS created
+  FROM merchants m LEFT JOIN wallets w ON w.merchant_id = m.id AND w.is_default
+ ORDER BY m.created_at;
+ROLLBACK;
+SQL
+    ;;
   app)
     : "${APP_DB_PASSWORD:?APP_DB_PASSWORD is not set in .env.neon}"
     if [[ "${2:-}" == direct ]]; then NEON_APP_POOLED_URL="$(app_pooled_url direct)"; else NEON_APP_POOLED_URL="${NEON_APP_POOLED_URL:-$(app_pooled_url)}"; fi
@@ -82,7 +93,7 @@ case "${1:-}" in
       })().catch((e) => { console.error("connection failed:", e.code ?? "", e.message); process.exit(1); });'
     ;;
   *)
-    echo "usage: $0 status|deploy|role|check|app" >&2
+    echo "usage: $0 status|deploy|role|check|merchants|app" >&2
     exit 2
     ;;
 esac

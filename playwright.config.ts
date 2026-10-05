@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_APP_URL as APP_URL, E2E_RPC_URL as RPC_URL } from "./tests/e2e/support/env";
+import { E2E_APP_URL as APP_URL, E2E_DEMO_MERCHANT_ID, E2E_RPC_URL as RPC_URL } from "./tests/e2e/support/env";
 
 // Browser (E2E) tests, Phase 14 (decisions F1-F3). Run: npm run test:e2e
 //
@@ -49,6 +49,7 @@ export default defineConfig({
         NEXT_PUBLIC_APP_URL: APP_URL,
         NEXT_PUBLIC_SOLANA_RPC_URL: RPC_URL,
         SOLANA_RPC_URL: RPC_URL,
+        DEMO_MERCHANT_ID: E2E_DEMO_MERCHANT_ID, // the demo merchant demo.spec.ts creates
       },
     },
   ],
