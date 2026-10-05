@@ -157,13 +157,23 @@ Never share seed phrases or private keys. The application never requests,
 stores, or uses private keys. See [docs/security.md](docs/security.md).
 
 ## Roadmap
-_Phase 17._
+Built so far: Phases 1–16 (this README). Next, toward real merchants: merchant API keys,
+webhooks and e-commerce plugins; mainnet readiness (paid infrastructure, monitoring and
+error tracking, managed secrets, a security review); refunds, more stablecoins and a
+point-of-sale mode. See [docs/pitch.md](docs/pitch.md#roadmap).
 
 ## Screenshots
-_Coming soon._
+![Landing page with "Try a demo payment"](docs/images/landing.png)
 
 ## Demo
-_Coming soon._
+**Try it:** open https://solanapay-checkout.vercel.app and click **Try a demo payment**
+(0.01 test USDC). You need a Solana wallet set to devnet (e.g. Phantom) with a little
+devnet SOL ([faucet.solana.com](https://faucet.solana.com)) and test USDC
+([faucet.circle.com](https://faucet.circle.com), Solana devnet). The checkout turns
+**Payment confirmed** once the server has verified your transaction on-chain.
+
+Pitch, architecture, Solana integration and security model:
+[docs/pitch.md](docs/pitch.md). Video scripts: [docs/demo-script.md](docs/demo-script.md).
 
 ## Solana Transaction
 A devnet USDC payment made through a Solana Pay transaction request and verified by the
