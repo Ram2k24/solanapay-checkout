@@ -1,0 +1,44 @@
+# Production reconciler (Phase 15, decision G4): every 5 minutes, asks the deployed app
+# to detect payments, expire overdue invoices and clean up expired rows
+# (POST /api/internal/reconcile with the CRON_SECRET bearer token, a repository secret).
+# While a customer has the checkout page open, the page itself finds the payment within
+# seconds; this run covers closed pages, expiry and cleanup.
+#
+# The response holds counts only (no ids, wallets or signatures), so it is safe in this
+# public log. A failed request or a run that stopped (e.g. wrong Solana cluster) fails
+# the job, and GitHub notifies the repository owner.
+#
+# GitHub may start scheduled runs late under load, and disables schedules in public
+# repositories after 60 days without activity (re-enable on the Actions tab).
+
+name: Reconcile
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: reconcile
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.repository == 'Ram2k24/solanapay-checkout' # not in forks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Run payment detection, expiry and cleanup
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: https://solanapay-checkout.vercel.app
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "The CRON_SECRET repository secret is not set."; exit 1; fi
+          status=$(curl -sS --max-time 120 -o summary.json -w '%{http_code}' -X POST \
+            -H "authorization: Bearer $CRON_SECRET" "$APP_URL/api/internal/reconcile")
+          echo "HTTP $status"
+          cat summary.json; echo
+          test "$status" = 200
+          node -e 'const s = require("./summary.json"); if (s.aborted) { console.error("Run aborted (wrong cluster?)"); process.exit(1); }'
