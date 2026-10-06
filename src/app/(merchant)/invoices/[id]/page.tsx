@@ -191,8 +191,9 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
                 </p>
               )}
               <p className="text-xs text-slate-500">
-                Customers can scan the QR code with a Solana Pay wallet, or open the checkout page. After they pay, use
-                Check for payment above (automatic detection comes in a later milestone).
+                Customers can scan the QR code with a Solana Pay wallet, or open the checkout page. Payments are
+                detected automatically: within seconds while the checkout page is open, otherwise within a few minutes.
+                Check for payment above looks right away.
               </p>
             </div>
           </div>

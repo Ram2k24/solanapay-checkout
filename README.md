@@ -163,7 +163,17 @@ error tracking, managed secrets, a security review); refunds, more stablecoins a
 point-of-sale mode. See [docs/pitch.md](docs/pitch.md#roadmap).
 
 ## Screenshots
+Landing page, with the public demo:
 ![Landing page with "Try a demo payment"](docs/images/landing.png)
+
+Merchant dashboard: verified USDC received, invoice counts, recent payments with Explorer links:
+![Merchant dashboard](docs/images/dashboard.png)
+
+An invoice: payment terms fixed by the server, the Solana Pay QR (a Transaction Request), the checkout link:
+![Pending invoice with its Solana Pay QR code](docs/images/invoice.png)
+
+The same kind of invoice once paid from a phone wallet, verified on-chain and finalized:
+![Paid invoice with the verified payment](docs/images/invoice-paid.png)
 
 ## Demo
 **Try it:** open https://solanapay-checkout.vercel.app and click **Try a demo payment**
