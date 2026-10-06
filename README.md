@@ -191,4 +191,4 @@ backend (INV-2026-00017, 1 USDC, finalized):
 [`39m866og…`](https://explorer.solana.com/tx/39m866ogKRdHeuqrePGz7TwXrr3u1bcUsc5eaH2QrxtEUnPyDHR9pycmCCEfj1zd65HqzE2sRKCpJnga8emL9YE3?cluster=devnet)
 
 ## License
-_To be decided._
+[MIT](LICENSE) © 2026 Ram Mahato

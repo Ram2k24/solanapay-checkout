@@ -23,12 +23,12 @@ shown is the live devnet deployment, https://solanapay-checkout.vercel.app.
 
 | Time | On screen | Say |
 |---|---|---|
-| 0:00–0:15 | You (camera) or the landing page | "Hi, I'm _\<name\>_, _\<one line about you\>_. This is SolanaPay Checkout: accept USDC with a QR code, paid straight to your wallet, verified on-chain." |
+| 0:00–0:15 | You (camera) or the landing page | "Hi, I'm Ram Mahato. I've worked on payment systems and cloud infrastructure, and now I build on Solana. This is SolanaPay Checkout: accept USDC with a QR code, paid straight to your wallet, verified on-chain." |
 | 0:15–0:45 | Landing page, slowly scrolling | "Small merchants who want stablecoins today either share a wallet address and check transfers by hand — no link to the order, and a screenshot is not proof — or hand their money to a custodial processor. We wanted the middle: real invoices, proof from the chain, and the money never leaving the merchant's control." |
 | 0:45–1:30 | Click **Try a demo payment** → checkout → pay with Phantom → **Payment confirmed** | "Here's the whole experience. A customer opens an invoice, pays with their own wallet, and within seconds the page confirms it. That confirmation doesn't come from the browser: our server found the transaction on Solana and checked the recipient, the token, the exact amount and the invoice's unique reference." |
 | 1:30–2:00 | Merchant dashboard → Transactions → Explorer link | "The merchant signs in with their wallet, no password, creates invoices, and sees every verified payment with a link to Solana Explorer. Nothing is custodial: the app never holds funds or keys." |
 | 2:00–2:20 | pitch.md "Target users" or a simple slide | "It's for small online and in-person businesses whose customers already hold USDC on Solana, and who want to accept it without a middleman." |
-| 2:20–2:35 | Validation (be honest) | _Either:_ "We haven't put it in front of merchants yet; that's our next step." _Or:_ what real people told you. |
+| 2:20–2:35 | Validation | "We haven't put it in front of merchants yet: the next step is a few small shops using the live devnet version, so we learn what they actually need before mainnet." |
 | 2:35–2:45 | Roadmap | "Next: API keys, webhooks and e-commerce plugins so any shop can integrate it, then mainnet readiness. It's live on devnet today — try the demo." |
 
 ---

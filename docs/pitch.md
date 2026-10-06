@@ -159,8 +159,8 @@ Full scripts for both videos: [demo-script.md](demo-script.md).
 
 ## Validation
 
-<!-- H5: fill in, or keep the honest line below. -->
-_No external merchant feedback yet._
+No external merchant feedback yet. Putting the live devnet version in front of a few
+small merchants is the next step.
 
 ## Roadmap
 
@@ -174,5 +174,7 @@ Next steps toward real merchants (details in the Phase 17 production roadmap):
 
 ## Team
 
-<!-- H5: name, role, relevant experience. -->
-_To be completed._
+**Ram Mahato** — Founder / Solana developer. Background in Java, SQL, Linux, Docker,
+Kubernetes and cloud infrastructure, and in supporting and implementing payment systems;
+now building Solana applications. SolanaPay Checkout applies that payments experience to
+Solana: invoices, reconciliation and verification first.
