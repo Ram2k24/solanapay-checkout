@@ -31,7 +31,7 @@ const TECH = [
   ["Solana", "Fast, low-fee settlement"],
   ["USDC", "Circle's dollar stablecoin"],
   ["Solana Pay", "Open payment request standard"],
-  ["Wallet Standard", "Phantom, Solflare and other wallets"],
+  ["Wallet Standard", "Phantom and other compatible wallets"],
   ["Next.js + TypeScript", "Strictly typed web app and API"],
   ["PostgreSQL", "Relational ledger of invoices and payments"],
 ] as const;

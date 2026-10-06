@@ -20,7 +20,7 @@ Implemented so far:
 - `GET /api/health`: reports app and database status (503 when the database is down)
 - Sign-In With Solana backend: one-time challenges, Ed25519 signature verification,
   database-backed sessions, CSRF protection, rate limiting (see [docs/security.md](docs/security.md))
-- Wallet connection via Wallet Standard (Phantom, Solflare, …): connect/disconnect,
+- Wallet connection via Wallet Standard (tested with Phantom): connect/disconnect,
   shortened address, devnet SOL and USDC balances (Circle's mint only), sign-in/out,
   wallet-rejection and network-mismatch handling
 - Merchant onboarding (business name, email, validated payout wallet)
